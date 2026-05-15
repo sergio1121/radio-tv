@@ -3,21 +3,202 @@ const express = require('express');
 const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
-const sqlite3 = require('sqlite3').verbose();
 const { spawn } = require('child_process');
 const session = require('express-session');
+
+// ============================================
+// CONFIGURACIÓN DE BASE DE DATOS (SQLite/PostgreSQL)
+// ============================================
+let db;
+let sqlite3;
+
+if (process.env.NODE_ENV === 'production') {
+    // PostgreSQL para producción (Render)
+    const { Pool } = require('pg');
+    const pool = new Pool({
+        connectionString: process.env.DATABASE_URL,
+        ssl: { rejectUnauthorized: false }
+    });
+    
+    db = pool;
+    
+    // Crear tablas en PostgreSQL
+    (async () => {
+        try {
+            await pool.query(`
+                CREATE TABLE IF NOT EXISTS songs (
+                    id SERIAL PRIMARY KEY,
+                    title TEXT,
+                    artist TEXT,
+                    filename TEXT,
+                    duration INTEGER,
+                    plays INTEGER,
+                    added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+                
+                CREATE TABLE IF NOT EXISTS playlists (
+                    id SERIAL PRIMARY KEY,
+                    name TEXT,
+                    description TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+                
+                CREATE TABLE IF NOT EXISTS playlist_songs (
+                    playlist_id INTEGER,
+                    song_id INTEGER,
+                    position INTEGER
+                );
+                
+                CREATE TABLE IF NOT EXISTS users (
+                    id SERIAL PRIMARY KEY,
+                    username TEXT UNIQUE,
+                    password TEXT,
+                    role TEXT
+                );
+                
+                CREATE TABLE IF NOT EXISTS recordings (
+                    id SERIAL PRIMARY KEY,
+                    filename TEXT,
+                    size INTEGER,
+                    duration INTEGER,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+                
+                CREATE TABLE IF NOT EXISTS ads (
+                    id SERIAL PRIMARY KEY,
+                    image TEXT,
+                    link TEXT,
+                    title TEXT,
+                    active INTEGER DEFAULT 1,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+                
+                CREATE TABLE IF NOT EXISTS settings (
+                    key TEXT PRIMARY KEY,
+                    value TEXT
+                );
+            `);
+            
+            // Usuario admin por defecto
+            const userResult = await pool.query("SELECT * FROM users WHERE username = 'admin'");
+            if (userResult.rows.length === 0) {
+                await pool.query("INSERT INTO users (username, password, role) VALUES ($1, $2, $3)", ['admin', 'admin123', 'admin']);
+                console.log('✅ Usuario admin creado: admin / admin123');
+            }
+            
+            // Logo por defecto
+            const logoResult = await pool.query("SELECT * FROM settings WHERE key = 'logo'");
+            if (logoResult.rows.length === 0) {
+                await pool.query("INSERT INTO settings (key, value) VALUES ($1, $2)", ['logo', '']);
+            }
+            
+            console.log('✅ Conectado a PostgreSQL en Render');
+        } catch (err) {
+            console.error('❌ Error en PostgreSQL:', err.message);
+        }
+    })();
+    
+    // Wrappers para compatibilidad con el código existente
+    db.get = (sql, params, callback) => {
+        pool.query(sql, params).then(result => {
+            callback(null, result.rows[0]);
+        }).catch(err => {
+            callback(err, null);
+        });
+    };
+    
+    db.all = (sql, params, callback) => {
+        pool.query(sql, params).then(result => {
+            callback(null, result.rows);
+        }).catch(err => {
+            callback(err, null);
+        });
+    };
+    
+    db.run = (sql, params, callback) => {
+        pool.query(sql, params).then(() => {
+            if (callback) callback(null);
+        }).catch(err => {
+            if (callback) callback(err);
+        });
+    };
+    
+    db.serialize = (callback) => {
+        callback();
+    };
+    
+} else {
+    // SQLite para desarrollo local
+    sqlite3 = require('sqlite3').verbose();
+    db = new sqlite3.Database('./database/radio.db');
+    
+    db.serialize(() => {
+        db.run(`CREATE TABLE IF NOT EXISTS songs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT NOT NULL,
+            artist TEXT,
+            filename TEXT NOT NULL,
+            added_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )`);
+        
+        db.run(`CREATE TABLE IF NOT EXISTS recordings (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            filename TEXT NOT NULL,
+            title TEXT,
+            size INTEGER,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )`);
+        
+        db.run(`CREATE TABLE IF NOT EXISTS ads (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            image TEXT NOT NULL,
+            link TEXT,
+            title TEXT,
+            active INTEGER DEFAULT 1,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )`);
+        
+        db.run(`CREATE TABLE IF NOT EXISTS settings (
+            key TEXT PRIMARY KEY,
+            value TEXT
+        )`);
+        
+        db.run(`CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE NOT NULL,
+            password TEXT NOT NULL
+        )`);
+        
+        // Usuario admin por defecto
+        db.get("SELECT * FROM users WHERE username = 'admin'", (err, row) => {
+            if (!row) {
+                db.run("INSERT INTO users (username, password) VALUES (?, ?)", ['admin', 'admin123']);
+                console.log('✅ Usuario admin creado: admin / admin123');
+            }
+        });
+        
+        // Logo por defecto
+        db.get("SELECT * FROM settings WHERE key = 'logo'", (err, row) => {
+            if (!row) {
+                db.run("INSERT INTO settings (key, value) VALUES (?, ?)", ['logo', '']);
+            }
+        });
+    });
+    
+    console.log('✅ Usando SQLite local');
+}
 
 // ============================================
 // CONFIGURACIÓN INICIAL
 // ============================================
 const app = express();
-const WEB_PORT = 3000;
+const WEB_PORT = process.env.PORT || 3000;
 const RTMP_PORT = 1935;
 const HTTP_PORT = 8000;
 
 // Session para autenticación
 app.use(session({
-    secret: 'nexuslive_secret_2024',
+    secret: process.env.SESSION_SECRET || 'nexuslive_secret_2024',
     resave: false,
     saveUninitialized: false,
     cookie: { maxAge: 24 * 60 * 60 * 1000 }
@@ -35,64 +216,6 @@ app.use('/uploads', express.static('public/assets/uploads'));
 app.use('/logos', express.static('public/assets/logos'));
 app.use('/ads', express.static('public/assets/ads'));
 app.use('/recordings', express.static(path.join(__dirname, 'recordings')));
-
-// ============================================
-// BASE DE DATOS
-// ============================================
-const db = new sqlite3.Database('./database/radio.db');
-
-db.serialize(() => {
-    db.run(`CREATE TABLE IF NOT EXISTS songs (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        title TEXT NOT NULL,
-        artist TEXT,
-        filename TEXT NOT NULL,
-        added_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    )`);
-    
-    db.run(`CREATE TABLE IF NOT EXISTS recordings (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        filename TEXT NOT NULL,
-        title TEXT,
-        size INTEGER,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    )`);
-    
-    db.run(`CREATE TABLE IF NOT EXISTS ads (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        image TEXT NOT NULL,
-        link TEXT,
-        title TEXT,
-        active INTEGER DEFAULT 1,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    )`);
-    
-    db.run(`CREATE TABLE IF NOT EXISTS settings (
-        key TEXT PRIMARY KEY,
-        value TEXT
-    )`);
-    
-    db.run(`CREATE TABLE IF NOT EXISTS users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        username TEXT UNIQUE NOT NULL,
-        password TEXT NOT NULL
-    )`);
-    
-    // Usuario admin por defecto
-    db.get("SELECT * FROM users WHERE username = 'admin'", (err, row) => {
-        if (!row) {
-            db.run("INSERT INTO users (username, password) VALUES (?, ?)", ['admin', 'admin123']);
-            console.log('✅ Usuario admin creado: admin / admin123');
-        }
-    });
-    
-    // Logo por defecto
-    db.get("SELECT * FROM settings WHERE key = 'logo'", (err, row) => {
-        if (!row) {
-            db.run("INSERT INTO settings (key, value) VALUES (?, ?)", ['logo', '']);
-        }
-    });
-});
 
 // ============================================
 // MIDDLEWARE DE AUTENTICACIÓN
@@ -188,15 +311,19 @@ app.post('/api/songs/multiple', upload.array('files', 100), (req, res) => {
         return res.status(400).json({ error: 'No se subió ningún archivo' });
     }
     
+    let completed = 0;
     files.forEach(file => {
         let title = file.originalname.replace('.mp3', '').replace(/[_-]/g, ' ');
         title = title.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(' ');
         
         db.run('INSERT INTO songs (title, artist, filename) VALUES (?, ?, ?)',
-            [title, 'NEXUS', file.filename]);
+            [title, 'NEXUS', file.filename], () => {
+                completed++;
+                if (completed === files.length) {
+                    res.json({ success: true, uploaded: files.length });
+                }
+            });
     });
-    
-    res.json({ success: true, uploaded: files.length });
 });
 
 app.get('/api/songs', (req, res) => {
@@ -435,6 +562,7 @@ app.listen(WEB_PORT, () => {
 📡 OBS:      rtmp://localhost:${RTMP_PORT}/live
 🔑 Stream key: mitv
 👤 Usuario: admin | Contraseña: admin123
+📦 Base de datos: ${process.env.NODE_ENV === 'production' ? 'PostgreSQL' : 'SQLite'}
 ═══════════════════════════════════════════════════
     `);
 });
