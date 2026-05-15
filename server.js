@@ -1,3 +1,6 @@
+// ============================================
+// DEPENDENCIAS
+// ============================================
 const NodeMediaServer = require('node-media-server');
 const express = require('express');
 const path = require('path');
@@ -7,13 +10,13 @@ const { spawn } = require('child_process');
 const session = require('express-session');
 
 // ============================================
-// CONFIGURACIÓN DE BASE DE DATOS (SQLite/PostgreSQL)
+// CONFIGURACIÓN DE BASE DE DATOS
 // ============================================
 let db;
 let sqlite3;
 
 if (process.env.NODE_ENV === 'production') {
-    // PostgreSQL para producción (Render)
+    // PRODUCCIÓN: PostgreSQL en Render
     const { Pool } = require('pg');
     const pool = new Pool({
         connectionString: process.env.DATABASE_URL,
@@ -98,7 +101,9 @@ if (process.env.NODE_ENV === 'production') {
         }
     })();
     
-    // Wrappers para compatibilidad con el código existente
+    // ============================================
+    // WRAPPERS PARA COMPATIBILIDAD CON SQLITE
+    // ============================================
     db.get = (sql, params, callback) => {
         pool.query(sql, params).then(result => {
             callback(null, result.rows[0]);
@@ -128,7 +133,7 @@ if (process.env.NODE_ENV === 'production') {
     };
     
 } else {
-    // SQLite para desarrollo local
+    // DESARROLLO LOCAL: SQLite
     sqlite3 = require('sqlite3').verbose();
     db = new sqlite3.Database('./database/radio.db');
     
@@ -189,7 +194,7 @@ if (process.env.NODE_ENV === 'production') {
 }
 
 // ============================================
-// CONFIGURACIÓN INICIAL
+// CONFIGURACIÓN INICIAL DE EXPRESS
 // ============================================
 const app = express();
 const WEB_PORT = process.env.PORT || 3000;
@@ -204,12 +209,13 @@ app.use(session({
     cookie: { maxAge: 24 * 60 * 60 * 1000 }
 }));
 
-// Crear carpetas
+// Crear carpetas necesarias
 const dirs = ['./database', './public/assets/uploads', './public/assets/logos', './public/assets/ads', './recordings'];
 dirs.forEach(dir => {
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 });
 
+// Middlewares
 app.use(express.json());
 app.use(express.static('public'));
 app.use('/uploads', express.static('public/assets/uploads'));
@@ -228,15 +234,22 @@ function isAuthenticated(req, res, next) {
 }
 
 // ============================================
-// LOGIN
+// LOGIN - ¡¡¡PARTE IMPORTANTE PARA ARREGLAR!!!
 // ============================================
+// Ruta para mostrar la página de login
 app.get('/login', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'login.html'));
 });
 
+// Ruta para procesar el login (API)
 app.post('/api/login', (req, res) => {
     const { username, password } = req.body;
-    db.get("SELECT * FROM users WHERE username = ? AND password = ?", [username, password], (err, row) => {
+    // IMPORTANTE: Usar $1, $2 para PostgreSQL (no ?)
+    db.get("SELECT * FROM users WHERE username = $1 AND password = $2", [username, password], (err, row) => {
+        if (err) {
+            console.error('Error en login:', err);
+            return res.status(500).json({ success: false, error: 'Error del servidor' });
+        }
         if (row) {
             req.session.isAdmin = true;
             req.session.username = username;
@@ -247,6 +260,7 @@ app.post('/api/login', (req, res) => {
     });
 });
 
+// Ruta para cerrar sesión
 app.get('/api/logout', (req, res) => {
     req.session.destroy();
     res.redirect('/login');
@@ -281,7 +295,7 @@ app.post('/api/chat/send', (req, res) => {
 });
 
 // ============================================
-// SUBIDA MP3
+// CONFIGURACIÓN DE MULTER PARA SUBIDA DE ARCHIVOS
 // ============================================
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
@@ -305,6 +319,10 @@ const upload = multer({
     limits: { fileSize: 50 * 1024 * 1024, files: 100 }
 });
 
+// ============================================
+// CANCIONES (SONGS)
+// ============================================
+// Subir múltiples canciones
 app.post('/api/songs/multiple', upload.array('files', 100), (req, res) => {
     const files = req.files;
     if (!files || files.length === 0) {
@@ -326,6 +344,7 @@ app.post('/api/songs/multiple', upload.array('files', 100), (req, res) => {
     });
 });
 
+// Obtener todas las canciones
 app.get('/api/songs', (req, res) => {
     db.all('SELECT * FROM songs ORDER BY added_at DESC', (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
@@ -333,6 +352,7 @@ app.get('/api/songs', (req, res) => {
     });
 });
 
+// Eliminar una canción
 app.delete('/api/songs/:id', (req, res) => {
     const { id } = req.params;
     db.get('SELECT filename FROM songs WHERE id = ?', id, (err, row) => {
@@ -370,7 +390,7 @@ app.get('/api/settings', (req, res) => {
 });
 
 // ============================================
-// PUBLICIDAD
+// PUBLICIDAD (ADS)
 // ============================================
 app.post('/api/ads/upload', upload.single('ad_image'), (req, res) => {
     if (!req.file) {
@@ -406,7 +426,7 @@ app.delete('/api/ads/:id', (req, res) => {
 });
 
 // ============================================
-// GRABACIONES
+// GRABACIONES (RECORDINGS)
 // ============================================
 let isRecording = false;
 let currentRecordingProcess = null;
@@ -516,7 +536,7 @@ app.get('/api/stream/status', (req, res) => {
 });
 
 // ============================================
-// SERVIDOR RTMP/FLV
+// SERVIDOR RTMP/FLV (NODE-MEDIA-SERVER)
 // ============================================
 const configRtmp = {
     rtmp: { port: RTMP_PORT, chunk_size: 60000, gop_cache: true, ping: 60, ping_timeout: 30 },
@@ -541,7 +561,7 @@ nms.on('donePublish', () => {
 });
 
 // ============================================
-// RUTAS WEB
+// RUTAS WEB (FRONTEND)
 // ============================================
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
@@ -551,6 +571,9 @@ app.get('/admin', isAuthenticated, (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'admin.html'));
 });
 
+// ============================================
+// INICIO DEL SERVIDOR
+// ============================================
 app.listen(WEB_PORT, () => {
     console.log(`
 ═══════════════════════════════════════════════════
