@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>NEXUS LIVE - Radio y TV Online</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; background: #0a0a0a; color: #fff; min-height: 100vh; display: flex; flex-direction: column; }
+        
+        .top-bar { background: rgba(0,0,0,0.95); backdrop-filter: blur(10px); border-bottom: 1px solid rgba(229,9,20,0.3); position: sticky; top: 0; z-index: 1000; }
+        .nav-container { max-width: 1400px; margin: 0 auto; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; }
+        .logo-area { display: flex; align-items: center; gap: 15px; }
+        .logo { font-size: 28px; font-weight: 800; background: linear-gradient(135deg, #e50914, #ff4d4d); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+        .logo span { background: none; -webkit-text-fill-color: #fff; }
+        .live-badge { background: #e50914; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: bold; animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.7; transform: scale(0.95); } }
+        .nav-menu { display: flex; gap: 10px; flex-wrap: wrap; }
+        .nav-btn { background: rgba(255,255,255,0.05); color: white; border: 1px solid rgba(255,255,255,0.1); padding: 10px 20px; border-radius: 30px; cursor: pointer; transition: all 0.3s; font-weight: 500; text-decoration: none; display: inline-flex; align-items: center; gap: 8px; }
+        .nav-btn:hover { background: #e50914; transform: translateY(-2px); border-color: #e50914; }
+        
+        .main-container { max-width: 1400px; margin: 0 auto; padding: 20px; flex: 1; }
+        .two-columns { display: grid; grid-template-columns: 1fr 320px; gap: 20px; }
+        
+        /* Reproductor - mismas proporciones siempre */
+        .player-section { 
+            background: #000; 
+            border-radius: 20px; 
+            overflow: hidden; 
+            border: 1px solid rgba(255,255,255,0.1);
+            aspect-ratio: 16/9;
+            position: relative;
+        }
+        #videoContainer, #radioContainer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+        #video { width: 100%; height: 100%; object-fit: cover; background: #000; }
+        .radio-container {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            position: relative;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+        }
+        .radio-container::before {
+            content: '';
+            position: absolute;
+            width: 150%;
+            height: 150%;
+            background: radial-gradient(circle, rgba(229,9,20,0.2) 0%, transparent 70%);
+            animation: rotate 20s linear infinite;
+        }
+        @keyframes rotate { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        .radio-logo {
+            width: 120px;
+            height: 120px;
+            background: linear-gradient(135deg, #e50914, #b81a1a);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 50px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+            margin-bottom: 20px;
+            z-index: 1;
+            animation: pulseRadio 2s infinite;
+            background-size: cover;
+            background-position: center;
+        }
+        .radio-logo.default {
+            background: linear-gradient(135deg, #e50914, #b81a1a);
+        }
+        @keyframes pulseRadio { 0%,100% { transform: scale(1); } 50% { transform: scale(1.02); } }
+        .radio-wave { display: flex; gap: 6px; align-items: center; justify-content: center; height: 40px; z-index: 1; }
+        .wave-bar { width: 4px; height: 20px; background: #e50914; border-radius: 2px; animation: wave 1s ease-in-out infinite; }
+        .wave-bar:nth-child(1) { animation-delay: 0s; height: 15px; }
+        .wave-bar:nth-child(2) { animation-delay: 0.1s; height: 30px; }
+        .wave-bar:nth-child(3) { animation-delay: 0.2s; height: 40px; }
+        .wave-bar:nth-child(4) { animation-delay: 0.3s; height: 30px; }
+        .wave-bar:nth-child(5) { animation-delay: 0.4s; height: 15px; }
+        @keyframes wave { 0%,100% { transform: scaleY(1); } 50% { transform: scaleY(0.5); } }
+        .radio-title { font-size: 20px; font-weight: 700; margin-top: 15px; z-index: 1; text-align: center; }
+        .radio-subtitle { font-size: 12px; color: #9ca3af; margin-top: 5px; z-index: 1; }
+        
+        .player-info { background: rgba(10,10,10,0.95); padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; border-top: 1px solid rgba(255,255,255,0.08); }
+        .status-badge { display: flex; align-items: center; gap: 8px; padding: 5px 12px; border-radius: 100px; font-size: 11px; font-weight: 600; }
+        .status-badge.live { background: rgba(16,185,129,0.2); color: #10b981; border: 1px solid rgba(16,185,129,0.4); }
+        .status-badge.radio { background: rgba(59,130,246,0.2); color: #60a5fa; border: 1px solid rgba(59,130,246,0.4); }
+        .status-badge.offline { background: rgba(107,114,128,0.2); color: #9ca3af; border: 1px solid rgba(107,114,128,0.4); }
+        .live-dot { width: 8px; height: 8px; background: #10b981; border-radius: 50%; animation: blinker 1.5s infinite; }
+        @keyframes blinker { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+        .now-playing { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #d1d5db; }
+        .now-playing i { color: #e50914; }
+        .control-btn { background: rgba(255,255,255,0.08); border: none; color: white; padding: 6px 14px; border-radius: 40px; cursor: pointer; font-size: 12px; display: flex; align-items: center; gap: 6px; transition: all 0.2s; }
+        .control-btn:hover { background: #e50914; transform: translateY(-2px); }
+        
+        .chat-container {
+            background: rgba(0,0,0,0.5);
+            border-radius: 15px;
+            overflow: hidden;
+            margin-top: 20px;
+            border: 1px solid rgba(255,255,255,0.08);
+        }
+        .chat-header { background: rgba(229,9,20,0.2); padding: 12px 15px; border-bottom: 1px solid rgba(255,255,255,0.1); font-weight: 600; font-size: 14px; }
+        .chat-messages { height: 200px; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 10px; }
+        .chat-message { background: rgba(255,255,255,0.05); padding: 8px 12px; border-radius: 10px; font-size: 12px; }
+        .chat-message strong { color: #e50914; }
+        .chat-time { font-size: 9px; color: #6b7280; margin-left: 10px; }
+        .chat-input-area { display: flex; padding: 10px; gap: 10px; border-top: 1px solid rgba(255,255,255,0.1); }
+        .chat-input-area input { flex: 1; padding: 10px; background: rgba(255,255,255,0.1); border: none; border-radius: 20px; color: white; font-size: 12px; }
+        .chat-input-area input:focus { outline: none; border: 1px solid #e50914; }
+        .chat-input-area button { padding: 10px 15px; background: #e50914; border: none; border-radius: 20px; color: white; cursor: pointer; transition: 0.3s; }
+        .chat-input-area button:hover { background: #b81a1a; transform: scale(1.02); }
+        
+        .sidebar { display: flex; flex-direction: column; gap: 20px; }
+        .info-card { background: rgba(255,255,255,0.05); border-radius: 20px; padding: 20px; border: 1px solid rgba(255,255,255,0.08); }
+        .weather-temp { font-size: 36px; font-weight: 700; }
+        .weather-city { font-size: 14px; color: #9ca3af; margin-top: 5px; }
+        .weather-icon { font-size: 48px; }
+        .weather-desc { font-size: 12px; color: #9ca3af; margin-top: 10px; }
+        .datetime { margin-top: 15px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.05); }
+        .time { font-size: 28px; font-weight: 700; font-family: monospace; }
+        .date { font-size: 11px; color: #9ca3af; margin-top: 5px; }
+        
+        .ad-space { background: linear-gradient(135deg, rgba(229,9,20,0.1), rgba(0,0,0,0.5)); border-radius: 15px; padding: 15px; text-align: center; border: 1px dashed rgba(229,9,20,0.3); cursor: pointer; transition: transform 0.3s; }
+        .ad-space:hover { transform: scale(1.02); }
+        .ad-text { font-size: 11px; color: #6b7280; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; }
+        .ad-title { font-size: 16px; font-weight: 600; margin-bottom: 5px; }
+        .ad-image { max-width: 100%; border-radius: 10px; margin-bottom: 10px; max-height: 150px; }
+        
+        .schedule-list { list-style: none; }
+        .schedule-list li { padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.05); display: flex; gap: 10px; }
+        .schedule-time { color: #e50914; font-weight: 600; min-width: 60px; }
+        .schedule-program { flex: 1; }
+        
+        .footer { margin-top: 60px; padding: 40px 0 20px; border-top: 1px solid rgba(255,255,255,0.05); background: rgba(0,0,0,0.3); }
+        .footer-content { max-width: 1400px; margin: 0 auto; display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 30px; margin-bottom: 30px; padding: 0 20px; }
+        .footer-section h4 { color: #e50914; margin-bottom: 15px; font-size: 16px; }
+        .footer-section p { font-size: 13px; color: #9ca3af; line-height: 1.6; }
+        .social-links { display: flex; gap: 15px; margin-top: 10px; }
+        .social-links a { color: #9ca3af; font-size: 20px; transition: 0.3s; }
+        .social-links a:hover { color: #e50914; }
+        .footer-bottom { max-width: 1400px; margin: 0 auto; text-align: center; padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.05); font-size: 12px; color: #6b7280; }
+        
+        .admin-link { position: fixed; bottom: 20px; right: 20px; width: 45px; height: 45px; background: rgba(0,0,0,0.8); border-radius: 50%; display: flex; align-items: center; justify-content: center; transition: 0.3s; z-index: 100; border: 1px solid rgba(229,9,20,0.3); }
+        .admin-link:hover { background: #e50914; transform: scale(1.1); }
+        .admin-link a { color: white; text-decoration: none; font-size: 18px; }
+        
+        @media (max-width: 1024px) { .two-columns { grid-template-columns: 1fr; } }
+        @media (max-width: 768px) { .nav-container { flex-direction: column; } .radio-logo { width: 80px; height: 80px; font-size: 35px; } .radio-title { font-size: 16px; } }
+    </style>
+</head>
+<body>
+    <div class="top-bar">
+        <div class="nav-container">
+            <div class="logo-area">
+                <div class="logo">NEXUS<span>LIVE</span></div>
+                <div class="live-badge" id="liveBadge">EN VIVO</div>
+            </div>
+            <div class="nav-menu">
+                <button class="nav-btn" onclick="scrollToPlayer()"><i class="fas fa-play-circle"></i> En vivo</button>
+                <button class="nav-btn" onclick="scrollToSchedule()"><i class="fas fa-calendar"></i> Programación</button>
+                <button class="nav-btn" onclick="scrollToChat()"><i class="fas fa-comments"></i> Chat</button>
+                <a href="/admin" class="nav-btn"><i class="fas fa-cog"></i> Admin</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="main-container">
+        <div class="two-columns">
+            <div>
+                <div class="player-section" id="playerSection">
+                    <div id="videoContainer" style="position: absolute; width: 100%; height: 100%;">
+                        <video id="video" controls autoplay style="width: 100%; height: 100%; object-fit: cover;"></video>
+                    </div>
+                    <div id="radioContainer" class="radio-container">
+                        <div class="radio-logo default" id="radioLogo">📻</div>
+                        <div class="radio-wave">
+                            <div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div>
+                            <div class="wave-bar"></div><div class="wave-bar"></div>
+                        </div>
+                        <div class="radio-title" id="radioTitle">NEXUS RADIO</div>
+                        <div class="radio-subtitle" id="radioSubtitle">La mejor música y entretenimiento</div>
+                    </div>
+                </div>
+                <div class="player-info">
+                    <div class="status-badge" id="statusBadge">
+                        <span class="live-dot"></span><span id="statusText">Cargando...</span>
+                    </div>
+                    <div class="now-playing" id="nowPlaying">
+                        <i class="fas fa-headphones"></i><span>Inicializando...</span>
+                    </div>
+                    <button class="control-btn" id="reloadBtn"><i class="fas fa-sync-alt"></i> Recargar</button>
+                </div>
+
+                <div class="chat-container" id="chatSection">
+                    <div class="chat-header"><i class="fas fa-comments"></i> Chat en Vivo</div>
+                    <div class="chat-messages" id="chatMessages"><div class="chat-message"><i class="fas fa-info-circle"></i> ¡Bienvenido al chat!</div></div>
+                    <div class="chat-input-area">
+                        <input type="text" id="chatUsername" placeholder="Tu nombre" maxlength="20" value="Oyente">
+                        <input type="text" id="chatMessage" placeholder="Escribe un mensaje..." maxlength="200" onkeypress="if(event.key==='Enter') sendMessage()">
+                        <button onclick="sendMessage()"><i class="fas fa-paper-plane"></i></button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="sidebar">
+                <div class="info-card">
+                    <div style="display: flex; align-items: center; justify-content: space-between;">
+                        <div><div class="weather-temp" id="temp">--°C</div><div class="weather-city" id="cityName">--</div></div>
+                        <div class="weather-icon" id="weatherIcon"><i class="fas fa-map-marker-alt"></i></div>
+                    </div>
+                    <div class="weather-desc" id="weatherDesc">--</div>
+                    <div class="datetime"><div class="time" id="currentTime">--:--:--</div><div class="date" id="currentDate">--/--/----</div></div>
+                </div>
+
+                <div id="adContainer" class="ad-space" style="cursor: pointer;">
+                    <div class="ad-text"><i class="fas fa-ad"></i> PUBLICIDAD</div>
+                    <img id="adImage" class="ad-image" src="" style="display: none;">
+                    <div class="ad-title" id="adTitle">¿Querés anunciarte aquí?</div>
+                    <p style="font-size: 12px; margin-top: 10px;">Llega a miles de oyentes</p>
+                </div>
+
+                <div class="info-card" id="scheduleSection">
+                    <h3 style="margin-bottom: 15px; font-size: 18px; color: #e50914;"><i class="fas fa-calendar-week"></i> Próximos Programas</h3>
+                    <ul class="schedule-list">
+                        <li><span class="schedule-time">08:00</span><span class="schedule-program">El Despertador</span></li>
+                        <li><span class="schedule-time">12:00</span><span class="schedule-program">Al Mediodía</span></li>
+                        <li><span class="schedule-time">18:00</span><span class="schedule-program">La Tarde</span></li>
+                        <li><span class="schedule-time">21:00</span><span class="schedule-program">Prime Time</span></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer class="footer">
+        <div class="footer-content">
+            <div class="footer-section">
+                <h4><i class="fas fa-broadcast-tower"></i> NEXUS LIVE</h4>
+                <p>Medio de comunicación independiente 24/7. Música, noticias y entretenimiento para toda la familia.</p>
+                <div class="social-links">
+                    <a href="#"><i class="fab fa-facebook"></i></a>
+                    <a href="#"><i class="fab fa-twitter"></i></a>
+                    <a href="#"><i class="fab fa-instagram"></i></a>
+                    <a href="#"><i class="fab fa-youtube"></i></a>
+                </div>
+            </div>
+            <div class="footer-section">
+                <h4><i class="fas fa-link"></i> Enlaces Rápidos</h4>
+                <p><a href="#" onclick="scrollToPlayer()" style="color:#9ca3af; text-decoration:none;">▶ En vivo</a></p>
+                <p><a href="#" onclick="scrollToSchedule()" style="color:#9ca3af; text-decoration:none;">📅 Programación</a></p>
+                <p><a href="#" onclick="scrollToChat()" style="color:#9ca3af; text-decoration:none;">💬 Chat</a></p>
+                <p><a href="/admin" style="color:#9ca3af; text-decoration:none;">⚙️ Panel de Control</a></p>
+            </div>
+            <div class="footer-section">
+                <h4><i class="fas fa-headset"></i> Contacto</h4>
+                <p><i class="fas fa-envelope"></i> info@nexuslive.com</p>
+                <p><i class="fas fa-phone"></i> +54 11 1234-5678</p>
+                <p><i class="fas fa-map-marker-alt"></i> Argentina</p>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <p>© 2026 NEXUS LIVE - Todos los derechos reservados | Transmisión en vivo las 24 horas</p>
+        </div>
+    </footer>
+
+    <div class="admin-link"><a href="/admin"><i class="fas fa-cog"></i></a></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/flv.js@1.6.2/dist/flv.min.js"></script>
+    <script>
+        // Elementos DOM
+        const video = document.getElementById('video');
+        const videoContainer = document.getElementById('videoContainer');
+        const radioContainer = document.getElementById('radioContainer');
+        const radioLogo = document.getElementById('radioLogo');
+        const statusBadge = document.getElementById('statusBadge');
+        const statusText = document.getElementById('statusText');
+        const nowPlayingSpan = document.getElementById('nowPlaying');
+        const radioTitleSpan = document.getElementById('radioTitle');
+        const radioSubtitleSpan = document.getElementById('radioSubtitle');
+
+        const STREAM_URL = 'http://localhost:8000/live/mitv.flv';
+        let currentMode = 'offline';
+        let audioPlayer = null;
+        let currentSongIndex = 0;
+        let playlist = [];
+        let flvPlayer = null;
+        let isUserPlaying = false;
+
+        // Mezclar array aleatoriamente
+        function shuffleArray(array) {
+            const shuffled = [...array];
+            for (let i = shuffled.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+            }
+            return shuffled;
+        }
+
+        function scrollToPlayer() { document.getElementById('playerSection').scrollIntoView({ behavior: 'smooth' }); }
+        function scrollToSchedule() { document.getElementById('scheduleSection').scrollIntoView({ behavior: 'smooth' }); }
+        function scrollToChat() { document.getElementById('chatSection').scrollIntoView({ behavior: 'smooth' }); }
+        window.scrollToPlayer = scrollToPlayer;
+        window.scrollToSchedule = scrollToSchedule;
+        window.scrollToChat = scrollToChat;
+
+        // Cargar logo y settings
+        async function loadSettings() {
+            try {
+                const res = await fetch('/api/settings');
+                const settings = await res.json();
+                if (settings.logo && settings.logo !== '') {
+                    radioLogo.style.backgroundImage = `url(${settings.logo})`;
+                    radioLogo.style.backgroundSize = 'cover';
+                    radioLogo.style.backgroundPosition = 'center';
+                    radioLogo.innerHTML = '';
+                    radioLogo.classList.remove('default');
+                } else {
+                    radioLogo.classList.add('default');
+                    radioLogo.innerHTML = '📻';
+                }
+            } catch(e) {}
+        }
+
+        // Cargar publicidad rotativa
+        let ads = [];
+        let currentAdIndex = 0;
+        let adInterval = null;
+
+        async function loadAds() {
+            try {
+                const res = await fetch('/api/ads');
+                ads = await res.json();
+                const adContainer = document.getElementById('adContainer');
+                const adImage = document.getElementById('adImage');
+                const adTitle = document.getElementById('adTitle');
+                
+                if (ads.length > 0) {
+                    if (adInterval) clearInterval(adInterval);
+                    showAd(0);
+                    adInterval = setInterval(() => {
+                        currentAdIndex = (currentAdIndex + 1) % ads.length;
+                        showAd(currentAdIndex);
+                    }, 8000);
+                } else {
+                    adImage.style.display = 'none';
+                    adTitle.innerHTML = '¿Querés anunciarte aquí?';
+                    adContainer.onclick = () => alert('Contacto: publicidad@nexuslive.com');
+                }
+            } catch(e) {}
+        }
+
+        function showAd(index) {
+            const ad = ads[index];
+            if (!ad) return;
+            const adImage = document.getElementById('adImage');
+            const adTitle = document.getElementById('adTitle');
+            const adContainer = document.getElementById('adContainer');
+            
+            adImage.src = ad.image;
+            adImage.style.display = 'block';
+            adTitle.innerHTML = ad.title || 'Publicidad';
+            adContainer.onclick = () => {
+                if (ad.link && ad.link !== '#') {
+                    window.open(ad.link, '_blank');
+                }
+            };
+        }
+
+        // Clima
+        async function getWeather() {
+            const cityElem = document.getElementById('cityName');
+            const tempElem = document.getElementById('temp');
+            const descElem = document.getElementById('weatherDesc');
+            const iconElem = document.getElementById('weatherIcon');
+            
+            cityElem.innerHTML = 'Solicitando permiso...';
+            
+            if (!navigator.geolocation) {
+                cityElem.innerHTML = 'Geolocalización no soportada';
+                return;
+            }
+            
+            navigator.geolocation.getCurrentPosition(
+                async (position) => {
+                    const lat = position.coords.latitude;
+                    const lon = position.coords.longitude;
+                    try {
+                        const reverseRes = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&addressdetails=1`);
+                        const reverseData = await reverseRes.json();
+                        const city = reverseData.address?.city || reverseData.address?.town || reverseData.address?.village || 'Tu ubicación';
+                        cityElem.innerHTML = city;
+                        
+                        const weatherRes = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true&timezone=auto`);
+                        const weatherData = await weatherRes.json();
+                        const temp = Math.round(weatherData.current_weather.temperature);
+                        const weatherCode = weatherData.current_weather.weathercode;
+                        
+                        let weatherDesc = 'Despejado';
+                        let weatherIcon = 'fa-sun';
+                        
+                        if (weatherCode >= 61 && weatherCode <= 67) { weatherDesc = 'Lluvia'; weatherIcon = 'fa-cloud-rain'; }
+                        else if (weatherCode >= 71 && weatherCode <= 77) { weatherDesc = 'Nieve'; weatherIcon = 'fa-snowflake'; }
+                        else if (weatherCode >= 95 && weatherCode <= 99) { weatherDesc = 'Tormenta'; weatherIcon = 'fa-bolt'; }
+                        else if (weatherCode >= 51 && weatherCode <= 57) { weatherDesc = 'Llovizna'; weatherIcon = 'fa-cloud-rain'; }
+                        else if (weatherCode >= 45 && weatherCode <= 48) { weatherDesc = 'Niebla'; weatherIcon = 'fa-smog'; }
+                        else if (weatherCode >= 3) { weatherDesc = 'Nublado'; weatherIcon = 'fa-cloud'; }
+                        else if (weatherCode === 2) { weatherDesc = 'Parcialmente nublado'; weatherIcon = 'fa-cloud-sun'; }
+                        
+                        tempElem.innerHTML = `${temp}°C`;
+                        descElem.innerHTML = weatherDesc;
+                        iconElem.innerHTML = `<i class="fas ${weatherIcon}"></i>`;
+                    } catch(e) {
+                        cityElem.innerHTML = 'Error al cargar';
+                    }
+                },
+                (error) => {
+                    let errorMsg = 'Activa la ubicación';
+                    cityElem.innerHTML = 'Ubicación no disponible';
+                    descElem.innerHTML = errorMsg;
+                }
+            );
+        }
+
+        function updateDateTime() {
+            const now = new Date();
+            document.getElementById('currentTime').innerHTML = now.toLocaleTimeString('es-AR');
+            document.getElementById('currentDate').innerHTML = now.toLocaleDateString('es-AR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+        }
+
+        // Chat
+        let chatUsername = localStorage.getItem('chatUsername') || 'Oyente';
+        document.getElementById('chatUsername').value = chatUsername;
+        async function sendMessage() {
+            const username = document.getElementById('chatUsername').value.trim() || 'Oyente';
+            const message = document.getElementById('chatMessage').value.trim();
+            if (!message) return;
+            localStorage.setItem('chatUsername', username);
+            await fetch('/api/chat/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, message }) });
+            document.getElementById('chatMessage').value = '';
+            loadMessages();
+        }
+        async function loadMessages() {
+            try {
+                const res = await fetch('/api/chat/messages');
+                const messages = await res.json();
+                const container = document.getElementById('chatMessages');
+                if (messages.length === 0) { container.innerHTML = '<div class="chat-message"><i class="fas fa-info-circle"></i> ¡Sé el primero en enviar un mensaje!</div>'; return; }
+                container.innerHTML = messages.map(msg => `<div class="chat-message"><strong>${escapeHtml(msg.username)}</strong><span class="chat-time">${new Date(msg.timestamp).toLocaleTimeString()}</span><div>${escapeHtml(msg.message)}</div></div>`).join('');
+                container.scrollTop = container.scrollHeight;
+            } catch(e) {}
+        }
+        function escapeHtml(text) { const div = document.createElement('div'); div.textContent = text; return div.innerHTML; }
+        window.sendMessage = sendMessage;
+
+        // Modos de reproducción
+        function setMode(mode, message = '') {
+            currentMode = mode;
+            if (mode === 'live') {
+                videoContainer.style.display = 'block';
+                radioContainer.style.display = 'none';
+                statusBadge.className = 'status-badge live';
+                statusBadge.innerHTML = '<span class="live-dot"></span><span>EN VIVO</span>';
+                statusText.innerText = 'EN VIVO';
+                nowPlayingSpan.innerHTML = '<i class="fas fa-video"></i><span>📺 Transmisión en vivo</span>';
+            } else if (mode === 'radio') {
+                videoContainer.style.display = 'none';
+                radioContainer.style.display = 'flex';
+                statusBadge.className = 'status-badge radio';
+                statusBadge.innerHTML = '<i class="fas fa-broadcast-tower"></i><span>MODO RADIO</span>';
+                statusText.innerText = 'MODO RADIO';
+                nowPlayingSpan.innerHTML = `<i class="fas fa-music"></i><span>${message || 'Reproduciendo música...'}</span>`;
+                if (message && message.includes(' - ')) {
+                    const parts = message.split(' - ');
+                    radioTitleSpan.innerText = parts[0];
+                    radioSubtitleSpan.innerText = parts[1];
+                }
+            } else {
+                videoContainer.style.display = 'none';
+                radioContainer.style.display = 'flex';
+                statusBadge.className = 'status-badge offline';
+                statusBadge.innerHTML = '<span class="live-dot"></span><span>SIN SEÑAL</span>';
+                statusText.innerText = 'SIN SEÑAL';
+                nowPlayingSpan.innerHTML = '<i class="fas fa-clock"></i><span>Esperando transmisión...</span>';
+                radioTitleSpan.innerText = 'NEXUS RADIO';
+                radioSubtitleSpan.innerText = 'Volvemos pronto';
+            }
+        }
+
+        function initLiveStream() {
+            if (flvPlayer) { flvPlayer.destroy(); flvPlayer = null; }
+            if (typeof flvjs !== 'undefined' && flvjs.isSupported()) {
+                flvPlayer = flvjs.createPlayer({ type: 'flv', url: STREAM_URL, isLive: true, cors: true });
+                flvPlayer.attachMediaElement(video);
+                flvPlayer.load();
+                flvPlayer.play();
+                flvPlayer.on(flvjs.Events.ERROR, () => { if (currentMode === 'live') switchToRadio(); });
+            } else { video.src = STREAM_URL; video.play(); }
+        }
+
+        function stopLiveStream() {
+            if (flvPlayer) { flvPlayer.destroy(); flvPlayer = null; }
+            video.pause(); video.src = '';
+        }
+
+        function initAudioPlayer(songUrl, title, artist) {
+            if (!audioPlayer) {
+                audioPlayer = new Audio();
+                audioPlayer.addEventListener('ended', playNextSong);
+                audioPlayer.addEventListener('error', () => setTimeout(playNextSong, 2000));
+            }
+            audioPlayer.pause();
+            audioPlayer.src = songUrl;
+            audioPlayer.load();
+            audioPlayer.play().catch(e => console.log('Error:', e));
+            setMode('radio', `${title} - ${artist}`);
+        }
+
+        function playNextSong() {
+            if (playlist.length === 0) { setMode('offline'); return; }
+            currentSongIndex = (currentSongIndex + 1) % playlist.length;
+            const song = playlist[currentSongIndex];
+            initAudioPlayer(`/uploads/${song.filename}`, song.title, song.artist);
+        }
+
+        function switchToRadio() {
+            if (currentMode === 'live') stopLiveStream();
+            if (playlist.length > 0 && (!audioPlayer || audioPlayer.paused)) {
+                // Solo cambiar si no hay reproducción activa
+                currentSongIndex = 0;
+                const song = playlist[currentSongIndex];
+                initAudioPlayer(`/uploads/${song.filename}`, song.title, song.artist);
+            } else if (playlist.length > 0 && audioPlayer && !audioPlayer.paused) {
+                // Ya hay reproducción, solo actualizar UI
+                const song = playlist[currentSongIndex];
+                setMode('radio', `${song.title} - ${song.artist}`);
+            } else if (playlist.length > 0) {
+                const song = playlist[currentSongIndex];
+                setMode('radio', `${song.title} - ${song.artist}`);
+            } else {
+                setMode('offline');
+            }
+        }
+
+        function switchToLive() {
+            if (audioPlayer) audioPlayer.pause();
+            initLiveStream();
+            setMode('live');
+        }
+
+        async function checkStream() {
+            try {
+                const res = await fetch('/api/stream/status');
+                const data = await res.json();
+                if (data.isLive && currentMode !== 'live') {
+                    switchToLive();
+                } else if (!data.isLive && currentMode === 'live') {
+                    switchToRadio();
+                }
+            } catch(e) { if (currentMode === 'live') switchToRadio(); }
+        }
+
+        async function loadSongs() {
+            try {
+                const res = await fetch('/api/songs');
+                const originalPlaylist = await res.json();
+                // Mezclar aleatoriamente la playlist
+                playlist = shuffleArray(originalPlaylist);
+                console.log(`Playlist cargada: ${playlist.length} canciones (orden aleatorio)`);
+                
+                if (playlist.length > 0 && currentMode !== 'live') {
+                    setTimeout(() => {
+                        if (currentMode !== 'live' && (!audioPlayer || audioPlayer.paused)) {
+                            currentSongIndex = 0;
+                            const song = playlist[currentSongIndex];
+                            initAudioPlayer(`/uploads/${song.filename}`, song.title, song.artist);
+                        }
+                    }, 1000);
+                }
+            } catch(e) {}
+        }
+
+        document.getElementById('reloadBtn').onclick = () => {
+            if (currentMode === 'live') { stopLiveStream(); initLiveStream(); }
+            else if (playlist.length > 0) { 
+                // Recargar con nueva canción aleatoria
+                playlist = shuffleArray(playlist);
+                currentSongIndex = 0;
+                const song = playlist[currentSongIndex];
+                initAudioPlayer(`/uploads/${song.filename}`, song.title, song.artist);
+            }
+        };
+
+        // Inicializar
+        loadSettings();
+        loadAds();
+        getWeather();
+        updateDateTime();
+        setInterval(updateDateTime, 1000);
+        setInterval(loadMessages, 5000);
+        loadSongs();
+        checkStream();
+        setInterval(checkStream, 10000);
+        loadMessages();
+    </script>
+</body>
+</html>

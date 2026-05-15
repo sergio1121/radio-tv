@@ -1,0 +1,14 @@
+node_modules/
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+*.exe
+*.dll
+*.log
+.env
+.DS_Store
+dist/
+build/
+tmp/
+*.zip

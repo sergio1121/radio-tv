@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin - NEXUS LIVE</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; background: #0a0a0a; color: #fff; padding: 20px; }
+        .header { background: rgba(0,0,0,0.8); border-bottom: 1px solid #e50914; padding: 15px 20px; margin-bottom: 30px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; border-radius: 12px; }
+        .logo { font-size: 24px; font-weight: bold; }
+        .logo span { color: #e50914; }
+        .nav a { color: white; text-decoration: none; padding: 8px 16px; border-radius: 8px; background: #e50914; transition: 0.3s; margin-left: 10px; }
+        .nav a:hover { background: #b81a1a; }
+        .card { background: rgba(255,255,255,0.05); border-radius: 20px; padding: 25px; margin-bottom: 30px; border: 1px solid rgba(255,255,255,0.1); }
+        h2 { margin-bottom: 20px; display: flex; align-items: center; gap: 10px; font-size: 20px; }
+        h2 i { color: #e50914; }
+        .status-badge { display: inline-block; padding: 6px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+        .live { background: #10b981; }
+        .offline { background: #6b7280; }
+        input, button { padding: 10px; margin: 5px 0; border-radius: 8px; border: none; }
+        input { width: 100%; background: rgba(255,255,255,0.1); color: white; }
+        button { background: #e50914; color: white; cursor: pointer; font-weight: bold; transition: 0.3s; width: auto; }
+        button:hover { background: #b81a1a; transform: translateY(-2px); }
+        .btn-rec { background: #10b981; }
+        .btn-stop { background: #dc2626; }
+        .btn-info { background: #17a2b8; }
+        .btn-danger { background: #dc3545; }
+        .btn-success { background: #28a745; }
+        .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 20px; }
+        .message { padding: 10px; border-radius: 8px; margin-top: 10px; display: none; }
+        .message.success { background: rgba(16,185,129,0.2); color: #10b981; border: 1px solid #10b981; }
+        .message.error { background: rgba(239,68,68,0.2); color: #ef4444; border: 1px solid #ef4444; }
+        .song-item, .recording-item, .ad-item { background: rgba(0,0,0,0.5); padding: 12px; margin: 8px 0; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
+        .recording-item video { background: #000; border-radius: 8px; max-height: 200px; margin-top: 10px; width: 100%; }
+        .delete-btn { background: #dc2626; padding: 5px 12px; width: auto; }
+        .download-btn { background: #3b82f6; padding: 5px 12px; width: auto; }
+        .tabs { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+        .tab-btn { background: rgba(255,255,255,0.1); padding: 10px 20px; border-radius: 8px; cursor: pointer; border: none; color: white; }
+        .tab-btn.active { background: #e50914; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        .pagination { display: flex; justify-content: center; gap: 10px; margin-top: 20px; flex-wrap: wrap; }
+        .pagination button { background: rgba(255,255,255,0.1); padding: 5px 12px; }
+        .pagination button.active { background: #e50914; }
+        .search-box { display: flex; gap: 10px; margin-bottom: 20px; }
+        .search-box input { flex: 1; }
+        .search-box button { width: auto; padding: 10px 20px; }
+        .logo-preview { width: 100px; height: 100px; border-radius: 50%; object-fit: cover; margin-top: 10px; border: 2px solid #e50914; }
+        .ads-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 15px; margin-top: 15px; }
+        .ad-card { background: rgba(0,0,0,0.5); border-radius: 10px; padding: 10px; text-align: center; }
+        .ad-card img { max-width: 100%; border-radius: 8px; max-height: 100px; }
+        .ad-card button { margin-top: 10px; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="logo">NEXUS<span>LIVE</span> | ADMIN</div>
+        <div class="nav"><a href="/"><i class="fas fa-tv"></i> Reproductor</a></div>
+    </div>
+
+    <div class="tabs">
+        <button class="tab-btn active" onclick="showTab('dashboard')"><i class="fas fa-tachometer-alt"></i> Dashboard</button>
+        <button class="tab-btn" onclick="showTab('songs')"><i class="fas fa-music"></i> Canciones</button>
+        <button class="tab-btn" onclick="showTab('recordings')"><i class="fas fa-database"></i> Grabaciones</button>
+        <button class="tab-btn" onclick="showTab('ads')"><i class="fas fa-ad"></i> Publicidad</button>
+        <button class="tab-btn" onclick="showTab('settings')"><i class="fas fa-cog"></i> Configuración</button>
+    </div>
+
+    <!-- Dashboard -->
+    <div id="dashboard" class="tab-content active">
+        <div class="grid-2">
+            <div class="card">
+                <h2><i class="fas fa-broadcast-tower"></i> Estado del Stream</h2>
+                <div id="streamStatus" class="status-badge offline">Cargando...</div>
+                <div style="margin-top: 15px; padding: 10px; background: rgba(0,0,0,0.3); border-radius: 8px;">
+                    <i class="fas fa-video"></i> Grabación: <span id="recordingState">Inactiva</span>
+                </div>
+                <div style="margin-top: 20px; display: flex; gap: 10px;">
+                    <button id="recordBtn" class="btn-rec"><i class="fas fa-circle"></i> Iniciar grabación</button>
+                    <button id="stopRecordBtn" class="btn-stop"><i class="fas fa-stop"></i> Detener grabación</button>
+                </div>
+                <div id="recordMessage" class="message"></div>
+            </div>
+            <div class="card">
+                <h2><i class="fas fa-chart-line"></i> Estadísticas</h2>
+                <p><i class="fas fa-music"></i> Canciones: <span id="statSongs">0</span></p>
+                <p><i class="fas fa-database"></i> Grabaciones: <span id="statRecordings">0</span></p>
+                <p><i class="fas fa-ad"></i> Anuncios: <span id="statAds">0</span></p>
+                <p><i class="fas fa-circle"></i> Stream: <span id="statStream">Offline</span></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Canciones -->
+    <div id="songs" class="tab-content">
+        <div class="grid-2">
+            <div class="card">
+                <h2><i class="fas fa-upload"></i> Subir MP3</h2>
+                <form id="uploadForm">
+                    <input type="file" name="files" accept=".mp3" multiple>
+                    <button type="submit"><i class="fas fa-music"></i> Subir archivos</button>
+                </form>
+                <div id="uploadMessage" class="message"></div>
+            </div>
+            <div class="card">
+                <h2><i class="fas fa-list"></i> Lista de reproducción <span id="songCount">0</span></h2>
+                <div class="search-box">
+                    <input type="text" id="searchSong" placeholder="🔍 Buscar canción..." onkeyup="filterSongs()">
+                    <button onclick="filterSongs()">Buscar</button>
+                    <button onclick="clearSearch()">Limpiar</button>
+                </div>
+                <div id="songList">Cargando canciones...</div>
+                <div id="pagination" class="pagination"></div>
+                <button id="deleteAllSongs" style="margin-top:15px; background:#dc2626;"><i class="fas fa-trash"></i> Eliminar todas</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Grabaciones -->
+    <div id="recordings" class="tab-content">
+        <div class="card">
+            <h2><i class="fas fa-database"></i> Grabaciones guardadas <span id="recordingCount">0</span></h2>
+            <div id="recordingsList">Cargando grabaciones...</div>
+        </div>
+    </div>
+
+    <!-- Publicidad -->
+    <div id="ads" class="tab-content">
+        <div class="grid-2">
+            <div class="card">
+                <h2><i class="fas fa-plus-circle"></i> Agregar Publicidad</h2>
+                <form id="adForm" enctype="multipart/form-data">
+                    <input type="file" name="ad_image" accept="image/*" required>
+                    <input type="text" name="title" placeholder="Título del anuncio">
+                    <input type="url" name="link" placeholder="URL del enlace (opcional)">
+                    <button type="submit"><i class="fas fa-upload"></i> Subir anuncio</button>
+                </form>
+                <div id="adMessage" class="message"></div>
+            </div>
+            <div class="card">
+                <h2><i class="fas fa-list"></i> Anuncios activos <span id="adCount">0</span></h2>
+                <div id="adsList">Cargando anuncios...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Configuración -->
+    <div id="settings" class="tab-content">
+        <div class="card">
+            <h2><i class="fas fa-image"></i> Logo de la Radio</h2>
+            <form id="logoForm" enctype="multipart/form-data">
+                <input type="file" name="logo" accept="image/*">
+                <button type="submit"><i class="fas fa-upload"></i> Cambiar logo</button>
+            </form>
+            <div id="logoPreview" style="margin-top: 15px;"></div>
+            <div id="logoMessage" class="message"></div>
+            <p style="margin-top: 15px; font-size: 12px; color: #888;">Formatos: JPG, PNG. Tamaño recomendado: 500x500px</p>
+        </div>
+    </div>
+
+    <script>
+        let allSongs = [];
+        let filteredSongs = [];
+        let currentPage = 1;
+        const itemsPerPage = 5;
+
+        function showTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.getElementById(tabId).classList.add('active');
+            event.target.classList.add('active');
+        }
+
+        function showMessage(element, message, type) {
+            const el = document.getElementById(element);
+            if (!el) return;
+            el.innerHTML = message;
+            el.className = `message ${type}`;
+            el.style.display = 'block';
+            setTimeout(() => el.style.display = 'none', 4000);
+        }
+
+        function formatBytes(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(1024));
+            return parseFloat((bytes / Math.pow(1024, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text || '';
+            return div.innerHTML;
+        }
+
+        // ========== CANCIONES ==========
+        async function loadSongs() {
+            try {
+                const res = await fetch('/api/songs');
+                allSongs = await res.json();
+                document.getElementById('songCount').innerHTML = allSongs.length;
+                filteredSongs = [...allSongs];
+                currentPage = 1;
+                renderSongs();
+            } catch(e) {
+                document.getElementById('songList').innerHTML = '<div style="text-align:center;color:#ef4444;">Error al cargar canciones</div>';
+            }
+        }
+
+        function filterSongs() {
+            const searchTerm = document.getElementById('searchSong').value.toLowerCase();
+            filteredSongs = allSongs.filter(song => 
+                song.title.toLowerCase().includes(searchTerm) || 
+                (song.artist && song.artist.toLowerCase().includes(searchTerm))
+            );
+            currentPage = 1;
+            renderSongs();
+        }
+
+        function clearSearch() {
+            document.getElementById('searchSong').value = '';
+            filteredSongs = [...allSongs];
+            currentPage = 1;
+            renderSongs();
+        }
+
+        function renderSongs() {
+            const start = (currentPage - 1) * itemsPerPage;
+            const end = start + itemsPerPage;
+            const pageSongs = filteredSongs.slice(start, end);
+            const container = document.getElementById('songList');
+            
+            if (pageSongs.length === 0) {
+                container.innerHTML = '<div style="text-align:center;padding:20px;">🎵 No hay canciones que coincidan</div>';
+                document.getElementById('pagination').innerHTML = '';
+                return;
+            }
+            
+            container.innerHTML = pageSongs.map(song => `
+                <div class="song-item">
+                    <div>
+                        <strong>🎵 ${escapeHtml(song.title)}</strong><br>
+                        <small>🎤 ${escapeHtml(song.artist)}</small><br>
+                        <small>📅 ${new Date(song.added_at).toLocaleString()}</small>
+                    </div>
+                    <button class="delete-btn" onclick="deleteSong(${song.id})">Eliminar</button>
+                </div>
+            `).join('');
+            
+            const totalPages = Math.ceil(filteredSongs.length / itemsPerPage);
+            let pagHtml = '<div class="pagination">';
+            if (currentPage > 1) pagHtml += `<button onclick="goToPage(${currentPage - 1})">◀ Anterior</button>`;
+            for (let i = 1; i <= totalPages; i++) {
+                pagHtml += `<button class="${i === currentPage ? 'active' : ''}" onclick="goToPage(${i})">${i}</button>`;
+            }
+            if (currentPage < totalPages) pagHtml += `<button onclick="goToPage(${currentPage + 1})">Siguiente ▶</button>`;
+            pagHtml += '</div>';
+            document.getElementById('pagination').innerHTML = pagHtml;
+        }
+
+        function goToPage(page) { currentPage = page; renderSongs(); }
+
+        async function deleteSong(id) {
+            if (!confirm('¿Eliminar esta canción?')) return;
+            await fetch(`/api/songs/${id}`, { method: 'DELETE' });
+            loadSongs();
+            updateStats();
+            showMessage('uploadMessage', 'Canción eliminada', 'success');
+        }
+
+        document.getElementById('deleteAllSongs')?.addEventListener('click', async () => {
+            if (!confirm('⚠️ ¿Eliminar TODAS las canciones?')) return;
+            for (const song of allSongs) await fetch(`/api/songs/${song.id}`, { method: 'DELETE' });
+            loadSongs();
+            updateStats();
+            showMessage('uploadMessage', 'Todas las canciones eliminadas', 'success');
+        });
+
+        // ========== GRABACIONES ==========
+        async function loadRecordings() {
+            try {
+                const res = await fetch('/api/recordings');
+                const recordings = await res.json();
+                document.getElementById('recordingCount').innerHTML = recordings.length;
+                const container = document.getElementById('recordingsList');
+                
+                if (recordings.length === 0) {
+                    container.innerHTML = '<div style="text-align:center;padding:20px;">📂 No hay grabaciones</div>';
+                    return;
+                }
+                
+                container.innerHTML = recordings.map(rec => `
+                    <div class="recording-item">
+                        <div><strong>📹 ${escapeHtml(rec.filename)}</strong><br><small>${new Date(rec.created_at).toLocaleString()} | ${formatBytes(rec.size)}</small></div>
+                        <video controls preload="metadata"><source src="/recordings/${rec.filename}" type="video/mp4"></video>
+                        <div style="margin-top:10px;"><button class="download-btn" onclick="downloadRecording('${rec.filename}')">💾 Descargar</button><button class="delete-btn" onclick="deleteRecording('${rec.filename}')">🗑️ Eliminar</button></div>
+                    </div>
+                `).join('');
+            } catch(e) {
+                document.getElementById('recordingsList').innerHTML = '<div style="text-align:center;color:#ef4444;">Error al cargar grabaciones</div>';
+            }
+        }
+
+        function downloadRecording(filename) { window.location.href = `/recordings/download/${filename}`; }
+        async function deleteRecording(filename) {
+            if (!confirm('¿Eliminar esta grabación?')) return;
+            await fetch(`/api/recordings/${filename}`, { method: 'DELETE' });
+            loadRecordings();
+            updateStats();
+        }
+
+        // ========== PUBLICIDAD ==========
+        async function loadAds() {
+            try {
+                const res = await fetch('/api/ads');
+                const ads = await res.json();
+                document.getElementById('adCount').innerHTML = ads.length;
+                const container = document.getElementById('adsList');
+                
+                if (ads.length === 0) {
+                    container.innerHTML = '<div style="text-align:center;padding:20px;">📢 No hay anuncios. Subí el primero.</div>';
+                    return;
+                }
+                
+                container.innerHTML = `<div class="ads-grid">${ads.map(ad => `
+                    <div class="ad-card">
+                        <img src="${ad.image}" onerror="this.style.display='none'">
+                        <div><strong>${escapeHtml(ad.title || 'Sin título')}</strong></div>
+                        <small>${ad.link && ad.link !== '#' ? ad.link.substring(0, 30) : 'Sin enlace'}</small>
+                        <button class="delete-btn" onclick="deleteAd(${ad.id})">Eliminar</button>
+                    </div>
+                `).join('')}</div>`;
+            } catch(e) {
+                document.getElementById('adsList').innerHTML = '<div style="text-align:center;color:#ef4444;">Error al cargar anuncios</div>';
+            }
+        }
+
+        async function deleteAd(id) {
+            if (!confirm('¿Eliminar este anuncio?')) return;
+            await fetch(`/api/ads/${id}`, { method: 'DELETE' });
+            loadAds();
+            updateStats();
+        }
+
+        // ========== LOGO ==========
+        async function loadLogoPreview() {
+            try {
+                const res = await fetch('/api/settings');
+                const settings = await res.json();
+                if (settings.logo && settings.logo !== '') {
+                    document.getElementById('logoPreview').innerHTML = `<img src="${settings.logo}" class="logo-preview"><br><small>Logo actual</small>`;
+                } else {
+                    document.getElementById('logoPreview').innerHTML = '<p style="color:#888;">No hay logo configurado</p>';
+                }
+            } catch(e) {}
+        }
+
+        // ========== STREAM ==========
+        async function updateStreamStatus() {
+            try {
+                const res = await fetch('/api/stream/status');
+                const data = await res.json();
+                const statusDiv = document.getElementById('streamStatus');
+                if (data.isLive) {
+                    statusDiv.className = 'status-badge live';
+                    statusDiv.innerHTML = '🔴 EN VIVO';
+                    document.getElementById('statStream').innerHTML = '🔴 En vivo';
+                } else {
+                    statusDiv.className = 'status-badge offline';
+                    statusDiv.innerHTML = '⚫ SIN TRANSMISIÓN';
+                    document.getElementById('statStream').innerHTML = '⚫ Offline';
+                }
+            } catch(e) {}
+        }
+
+        async function updateRecordingStatus() {
+            try {
+                const res = await fetch('/api/recordings/status');
+                const data = await res.json();
+                document.getElementById('recordingState').innerHTML = data.isRecording ? '<span style="color:#e50914;">🔴 GRABANDO</span>' : '⚫ Inactiva';
+            } catch(e) {}
+        }
+
+        async function updateStats() {
+            try {
+                const songs = await (await fetch('/api/songs')).json();
+                const recordings = await (await fetch('/api/recordings')).json();
+                const ads = await (await fetch('/api/ads')).json();
+                document.getElementById('statSongs').innerHTML = songs.length;
+                document.getElementById('statRecordings').innerHTML = recordings.length;
+                document.getElementById('statAds').innerHTML = ads.length;
+            } catch(e) {}
+        }
+
+        async function startRecording() {
+            const res = await fetch('/api/recordings/start', { method: 'POST' });
+            const data = await res.json();
+            showMessage('recordMessage', data.message, data.success ? 'success' : 'error');
+            updateRecordingStatus();
+            if (data.success) setTimeout(loadRecordings, 2000);
+        }
+
+        async function stopRecording() {
+            const res = await fetch('/api/recordings/stop', { method: 'POST' });
+            const data = await res.json();
+            showMessage('recordMessage', data.message, data.success ? 'success' : 'error');
+            updateRecordingStatus();
+            setTimeout(loadRecordings, 1000);
+        }
+
+        document.getElementById('recordBtn')?.addEventListener('click', startRecording);
+        document.getElementById('stopRecordBtn')?.addEventListener('click', stopRecording);
+
+        // ========== FORMULARIOS ==========
+        document.getElementById('uploadForm')?.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            const btn = e.target.querySelector('button');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = 'Subiendo...';
+            btn.disabled = true;
+            const res = await fetch('/api/songs/multiple', { method: 'POST', body: formData });
+            const result = await res.json();
+            showMessage('uploadMessage', `Subidos ${result.uploaded} archivos`, 'success');
+            loadSongs();
+            updateStats();
+            e.target.reset();
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+        });
+
+        document.getElementById('adForm')?.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            const btn = e.target.querySelector('button');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = 'Subiendo...';
+            btn.disabled = true;
+            const res = await fetch('/api/ads/upload', { method: 'POST', body: formData });
+            if (res.ok) {
+                showMessage('adMessage', 'Anuncio subido correctamente', 'success');
+                loadAds();
+                updateStats();
+                e.target.reset();
+            } else {
+                showMessage('adMessage', 'Error al subir anuncio', 'error');
+            }
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+        });
+
+        document.getElementById('logoForm')?.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            const btn = e.target.querySelector('button');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = 'Subiendo...';
+            btn.disabled = true;
+            const res = await fetch('/api/upload-logo', { method: 'POST', body: formData });
+            const result = await res.json();
+            if (result.success) {
+                showMessage('logoMessage', 'Logo actualizado correctamente', 'success');
+                loadLogoPreview();
+            } else {
+                showMessage('logoMessage', 'Error al actualizar logo', 'error');
+            }
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+        });
+
+        // Inicializar
+        loadSongs();
+        loadRecordings();
+        loadAds();
+        loadLogoPreview();
+        updateStats();
+        updateStreamStatus();
+        updateRecordingStatus();
+        setInterval(updateStreamStatus, 5000);
+        setInterval(updateRecordingStatus, 5000);
+        setInterval(updateStats, 10000);
+        
+        window.filterSongs = filterSongs;
+        window.clearSearch = clearSearch;
+        window.goToPage = goToPage;
+        window.deleteSong = deleteSong;
+        window.downloadRecording = downloadRecording;
+        window.deleteRecording = deleteRecording;
+        window.deleteAd = deleteAd;
+    </script>
+</body>
+</html>
