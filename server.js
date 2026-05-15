@@ -13,19 +13,46 @@ const session = require('express-session');
 // CONFIGURACIÓN DE BASE DE DATOS
 // ============================================
 let db;
-let sqlite3;
 
 if (process.env.NODE_ENV === 'production') {
+    // ============================================
     // PRODUCCIÓN: PostgreSQL en Render
+    // ============================================
     const { Pool } = require('pg');
     const pool = new Pool({
         connectionString: process.env.DATABASE_URL,
         ssl: { rejectUnauthorized: false }
     });
     
-    db = pool;
+    // Wrappers para compatibilidad con SQLite
+    db = {
+        get: (sql, params, callback) => {
+            pool.query(sql, params).then(res => {
+                callback(null, res.rows[0]);
+            }).catch(err => {
+                callback(err, null);
+            });
+        },
+        all: (sql, params, callback) => {
+            pool.query(sql, params).then(res => {
+                callback(null, res.rows);
+            }).catch(err => {
+                callback(err, null);
+            });
+        },
+        run: (sql, params, callback) => {
+            pool.query(sql, params).then(() => {
+                if (callback) callback(null);
+            }).catch(err => {
+                if (callback) callback(err);
+            });
+        },
+        serialize: (callback) => {
+            callback();
+        }
+    };
     
-    // Crear tablas en PostgreSQL
+    // Crear tablas y usuario admin
     (async () => {
         try {
             await pool.query(`
@@ -34,8 +61,6 @@ if (process.env.NODE_ENV === 'production') {
                     title TEXT,
                     artist TEXT,
                     filename TEXT,
-                    duration INTEGER,
-                    plays INTEGER,
                     added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 );
                 
@@ -55,15 +80,13 @@ if (process.env.NODE_ENV === 'production') {
                 CREATE TABLE IF NOT EXISTS users (
                     id SERIAL PRIMARY KEY,
                     username TEXT UNIQUE,
-                    password TEXT,
-                    role TEXT
+                    password TEXT
                 );
                 
                 CREATE TABLE IF NOT EXISTS recordings (
                     id SERIAL PRIMARY KEY,
                     filename TEXT,
                     size INTEGER,
-                    duration INTEGER,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 );
                 
@@ -83,15 +106,15 @@ if (process.env.NODE_ENV === 'production') {
             `);
             
             // Usuario admin por defecto
-            const userResult = await pool.query("SELECT * FROM users WHERE username = 'admin'");
-            if (userResult.rows.length === 0) {
-                await pool.query("INSERT INTO users (username, password, role) VALUES ($1, $2, $3)", ['admin', 'admin123', 'admin']);
+            const userCheck = await pool.query("SELECT * FROM users WHERE username = 'admin'");
+            if (userCheck.rows.length === 0) {
+                await pool.query("INSERT INTO users (username, password) VALUES ($1, $2)", ['admin', 'admin123']);
                 console.log('✅ Usuario admin creado: admin / admin123');
             }
             
             // Logo por defecto
-            const logoResult = await pool.query("SELECT * FROM settings WHERE key = 'logo'");
-            if (logoResult.rows.length === 0) {
+            const logoCheck = await pool.query("SELECT * FROM settings WHERE key = 'logo'");
+            if (logoCheck.rows.length === 0) {
                 await pool.query("INSERT INTO settings (key, value) VALUES ($1, $2)", ['logo', '']);
             }
             
@@ -101,40 +124,11 @@ if (process.env.NODE_ENV === 'production') {
         }
     })();
     
-    // ============================================
-    // WRAPPERS PARA COMPATIBILIDAD CON SQLITE
-    // ============================================
-    db.get = (sql, params, callback) => {
-        pool.query(sql, params).then(result => {
-            callback(null, result.rows[0]);
-        }).catch(err => {
-            callback(err, null);
-        });
-    };
-    
-    db.all = (sql, params, callback) => {
-        pool.query(sql, params).then(result => {
-            callback(null, result.rows);
-        }).catch(err => {
-            callback(err, null);
-        });
-    };
-    
-    db.run = (sql, params, callback) => {
-        pool.query(sql, params).then(() => {
-            if (callback) callback(null);
-        }).catch(err => {
-            if (callback) callback(err);
-        });
-    };
-    
-    db.serialize = (callback) => {
-        callback();
-    };
-    
 } else {
+    // ============================================
     // DESARROLLO LOCAL: SQLite
-    sqlite3 = require('sqlite3').verbose();
+    // ============================================
+    const sqlite3 = require('sqlite3').verbose();
     db = new sqlite3.Database('./database/radio.db');
     
     db.serialize(() => {
@@ -146,10 +140,28 @@ if (process.env.NODE_ENV === 'production') {
             added_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )`);
         
+        db.run(`CREATE TABLE IF NOT EXISTS playlists (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT,
+            description TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )`);
+        
+        db.run(`CREATE TABLE IF NOT EXISTS playlist_songs (
+            playlist_id INTEGER,
+            song_id INTEGER,
+            position INTEGER
+        )`);
+        
+        db.run(`CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE NOT NULL,
+            password TEXT NOT NULL
+        )`);
+        
         db.run(`CREATE TABLE IF NOT EXISTS recordings (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             filename TEXT NOT NULL,
-            title TEXT,
             size INTEGER,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )`);
@@ -166,12 +178,6 @@ if (process.env.NODE_ENV === 'production') {
         db.run(`CREATE TABLE IF NOT EXISTS settings (
             key TEXT PRIMARY KEY,
             value TEXT
-        )`);
-        
-        db.run(`CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT UNIQUE NOT NULL,
-            password TEXT NOT NULL
         )`);
         
         // Usuario admin por defecto
@@ -234,17 +240,14 @@ function isAuthenticated(req, res, next) {
 }
 
 // ============================================
-// LOGIN - ¡¡¡PARTE IMPORTANTE PARA ARREGLAR!!!
+// LOGIN
 // ============================================
-// Ruta para mostrar la página de login
 app.get('/login', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'login.html'));
 });
 
-// Ruta para procesar el login (API)
 app.post('/api/login', (req, res) => {
     const { username, password } = req.body;
-    // IMPORTANTE: Usar $1, $2 para PostgreSQL (no ?)
     db.get("SELECT * FROM users WHERE username = $1 AND password = $2", [username, password], (err, row) => {
         if (err) {
             console.error('Error en login:', err);
@@ -260,7 +263,6 @@ app.post('/api/login', (req, res) => {
     });
 });
 
-// Ruta para cerrar sesión
 app.get('/api/logout', (req, res) => {
     req.session.destroy();
     res.redirect('/login');
@@ -322,7 +324,6 @@ const upload = multer({
 // ============================================
 // CANCIONES (SONGS)
 // ============================================
-// Subir múltiples canciones
 app.post('/api/songs/multiple', upload.array('files', 100), (req, res) => {
     const files = req.files;
     if (!files || files.length === 0) {
@@ -344,15 +345,16 @@ app.post('/api/songs/multiple', upload.array('files', 100), (req, res) => {
     });
 });
 
-// Obtener todas las canciones
 app.get('/api/songs', (req, res) => {
     db.all('SELECT * FROM songs ORDER BY added_at DESC', (err, rows) => {
-        if (err) return res.status(500).json({ error: err.message });
+        if (err) {
+            console.error('Error en /api/songs:', err);
+            return res.status(500).json({ error: err.message });
+        }
         res.json(rows || []);
     });
 });
 
-// Eliminar una canción
 app.delete('/api/songs/:id', (req, res) => {
     const { id } = req.params;
     db.get('SELECT filename FROM songs WHERE id = ?', id, (err, row) => {
