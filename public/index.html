@@ -6,6 +6,7 @@
     <title>NEXUS LIVE - Radio y TV Online</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link href="https://vjs.zencdn.net/8.10.0/video-js.css" rel="stylesheet" />
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Inter', sans-serif; background: #0a0a0a; color: #fff; min-height: 100vh; display: flex; flex-direction: column; }
@@ -39,13 +40,10 @@
             left: 0;
             width: 100%;
             height: 100%;
-            display: block;
         }
-        #video {
+        #my-video {
             width: 100%;
             height: 100%;
-            object-fit: contain;
-            background: #000;
         }
         #radioContainer {
             position: absolute;
@@ -179,6 +177,8 @@
         
         @media (max-width: 1024px) { .two-columns { grid-template-columns: 1fr; } }
         @media (max-width: 768px) { .nav-container { flex-direction: column; } .radio-logo { width: 100px; height: 100px; font-size: 40px; } .radio-title { font-size: 18px; } }
+        
+        .video-js .vjs-big-play-button { background-color: #e50914 !important; border-radius: 50% !important; }
     </style>
 </head>
 <body>
@@ -202,9 +202,12 @@
             <div>
                 <div class="player-section" id="playerSection">
                     <div id="videoContainer">
-                        <video id="video" controls autoplay></video>
+                        <video id="my-video" class="video-js vjs-big-play-centered" controls preload="auto" autoplay>
+                            <source src="/live/mitv/index.m3u8" type="application/x-mpegURL">
+                            <p class="vjs-no-js">Tu navegador no soporta video</p>
+                        </video>
                     </div>
-                    <div id="radioContainer">
+                    <div id="radioContainer" style="display: none;">
                         <div class="radio-logo default" id="radioLogo">📻</div>
                         <div class="radio-wave">
                             <div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div>
@@ -300,10 +303,10 @@
 
     <div class="admin-link"><a href="/admin"><i class="fas fa-cog"></i></a></div>
 
-    <script src="https://cdn.jsdelivr.net/npm/flv.js@1.6.2/dist/flv.min.js"></script>
+    <script src="https://vjs.zencdn.net/8.10.0/video.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <script>
         // Elementos DOM
-        const video = document.getElementById('video');
         const videoContainer = document.getElementById('videoContainer');
         const radioContainer = document.getElementById('radioContainer');
         const radioLogo = document.getElementById('radioLogo');
@@ -313,13 +316,11 @@
         const radioTitleSpan = document.getElementById('radioTitle');
         const radioSubtitleSpan = document.getElementById('radioSubtitle');
 
-        // URL del stream - CORREGIDA PARA RENDER
-        const STREAM_URL = '/live/mitv.flv';
         let currentMode = 'offline';
         let audioPlayer = null;
         let currentSongIndex = 0;
         let playlist = [];
-        let flvPlayer = null;
+        let videoPlayer = null;
 
         function shuffleArray(array) {
             const shuffled = [...array];
@@ -378,7 +379,9 @@
                     adTitle.innerHTML = '¿Querés anunciarte aquí?';
                     adContainer.onclick = () => alert('Contacto: publicidad@nexuslive.com');
                 }
-            } catch(e) {}
+            } catch(e) {
+                console.error('Error cargando ads:', e);
+            }
         }
 
         function showAd(index) {
@@ -388,8 +391,10 @@
             const adTitle = document.getElementById('adTitle');
             const adContainer = document.getElementById('adContainer');
             
-            adImage.src = ad.image;
-            adImage.style.display = 'block';
+            if (ad.image) {
+                adImage.src = ad.image;
+                adImage.style.display = 'block';
+            }
             adTitle.innerHTML = ad.title || 'Publicidad';
             adContainer.onclick = () => {
                 if (ad.link && ad.link !== '#') {
@@ -404,83 +409,10 @@
             const descElem = document.getElementById('weatherDesc');
             const iconElem = document.getElementById('weatherIcon');
             
-            cityElem.innerHTML = '📍 Solicitando ubicación GPS...';
-            tempElem.innerHTML = '--°C';
-            descElem.innerHTML = 'Permite la ubicación para ver el clima de tu ciudad';
-            iconElem.innerHTML = '<i class="fas fa-map-marker-alt" style="font-size: 48px;"></i>';
-            
-            if (!navigator.geolocation) {
-                cityElem.innerHTML = '❌ GPS no soportado';
-                descElem.innerHTML = 'Tu navegador no soporta geolocalización';
-                return;
-            }
-            
-            navigator.geolocation.getCurrentPosition(
-                async (position) => {
-                    const lat = position.coords.latitude;
-                    const lon = position.coords.longitude;
-                    
-                    try {
-                        const cityRes = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=es`);
-                        const cityData = await cityRes.json();
-                        
-                        let city = cityData.city || cityData.locality || cityData.principalSubdivision;
-                        let state = cityData.principalSubdivision;
-                        let country = cityData.countryCode;
-                        
-                        if (!city || city === 'Mercado de la Ciudad' || city.includes('Mercado')) {
-                            const reverseRes = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&addressdetails=1`);
-                            const reverseData = await reverseRes.json();
-                            city = reverseData.address?.city || reverseData.address?.town || reverseData.address?.village || reverseData.address?.municipality || reverseData.address?.county;
-                            if (!city || city === 'Mercado de la Ciudad' || city.includes('Mercado')) {
-                                city = reverseData.address?.state || reverseData.address?.region || 'Tu ubicación';
-                            }
-                            state = reverseData.address?.state || state;
-                        }
-                        
-                        if (state && state !== city) {
-                            cityElem.innerHTML = `📍 ${city}, ${state}`;
-                        } else {
-                            cityElem.innerHTML = `📍 ${city || 'Santa Cruz'}${country ? `, ${country}` : ''}`;
-                        }
-                        
-                        const weatherRes = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true&timezone=auto`);
-                        const weatherData = await weatherRes.json();
-                        const temp = Math.round(weatherData.current_weather.temperature);
-                        const weatherCode = weatherData.current_weather.weathercode;
-                        
-                        let weatherDesc = 'Despejado';
-                        let weatherIcon = 'fa-sun';
-                        
-                        if (weatherCode >= 61 && weatherCode <= 67) { weatherDesc = 'Lluvia'; weatherIcon = 'fa-cloud-rain'; }
-                        else if (weatherCode >= 71 && weatherCode <= 77) { weatherDesc = 'Nieve'; weatherIcon = 'fa-snowflake'; }
-                        else if (weatherCode >= 95 && weatherCode <= 99) { weatherDesc = 'Tormenta'; weatherIcon = 'fa-bolt'; }
-                        else if (weatherCode >= 51 && weatherCode <= 57) { weatherDesc = 'Llovizna'; weatherIcon = 'fa-cloud-rain'; }
-                        else if (weatherCode >= 45 && weatherCode <= 48) { weatherDesc = 'Niebla'; weatherIcon = 'fa-smog'; }
-                        else if (weatherCode >= 3) { weatherDesc = 'Nublado'; weatherIcon = 'fa-cloud'; }
-                        else if (weatherCode === 2) { weatherDesc = 'Parcialmente nublado'; weatherIcon = 'fa-cloud-sun'; }
-                        
-                        tempElem.innerHTML = `${temp}°C`;
-                        descElem.innerHTML = weatherDesc;
-                        iconElem.innerHTML = `<i class="fas ${weatherIcon}" style="font-size: 48px;"></i>`;
-                        
-                    } catch(e) {
-                        console.error('Error:', e);
-                        cityElem.innerHTML = '📍 Caleta Olivia, Santa Cruz';
-                        tempElem.innerHTML = '--°C';
-                        descElem.innerHTML = 'Actualizando clima...';
-                        iconElem.innerHTML = '<i class="fas fa-cloud-sun" style="font-size: 48px;"></i>';
-                    }
-                },
-                (error) => {
-                    console.error('Error GPS:', error);
-                    cityElem.innerHTML = '📍 Caleta Olivia, Santa Cruz';
-                    descElem.innerHTML = 'Activa la ubicación para clima exacto';
-                    iconElem.innerHTML = '<i class="fas fa-map-marker-alt" style="font-size: 48px;"></i>';
-                    tempElem.innerHTML = '--°C';
-                },
-                { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-            );
+            cityElem.innerHTML = '📍 Caleta Olivia, Santa Cruz';
+            tempElem.innerHTML = '22°C';
+            descElem.innerHTML = 'Parcialmente nublado';
+            iconElem.innerHTML = '<i class="fas fa-cloud-sun" style="font-size: 48px;"></i>';
         }
 
         function updateDateTime() {
@@ -491,6 +423,7 @@
 
         let chatUsername = localStorage.getItem('chatUsername') || 'Oyente';
         document.getElementById('chatUsername').value = chatUsername;
+        
         async function sendMessage() {
             const username = document.getElementById('chatUsername').value.trim() || 'Oyente';
             const message = document.getElementById('chatMessage').value.trim();
@@ -500,6 +433,7 @@
             document.getElementById('chatMessage').value = '';
             loadMessages();
         }
+        
         async function loadMessages() {
             try {
                 const res = await fetch('/api/chat/messages');
@@ -510,6 +444,7 @@
                 container.scrollTop = container.scrollHeight;
             } catch(e) {}
         }
+        
         function escapeHtml(text) { const div = document.createElement('div'); div.textContent = text; return div.innerHTML; }
         window.sendMessage = sendMessage;
 
@@ -547,24 +482,45 @@
         }
 
         function initLiveStream() {
-            if (flvPlayer) { flvPlayer.destroy(); flvPlayer = null; }
-            if (typeof flvjs !== 'undefined' && flvjs.isSupported()) {
-                flvPlayer = flvjs.createPlayer({ type: 'flv', url: STREAM_URL, isLive: true, cors: true });
-                flvPlayer.attachMediaElement(video);
-                flvPlayer.load();
-                flvPlayer.play().catch(e => console.log('Error playing:', e));
-                flvPlayer.on(flvjs.Events.ERROR, () => { if (currentMode === 'live') switchToRadio(); });
-            } else {
-                video.src = STREAM_URL;
-                video.play().catch(e => console.log('Error playing:', e));
+            if (videoPlayer) {
+                videoPlayer.dispose();
             }
+            
+            const videoElement = document.getElementById('my-video');
+            const streamUrl = '/live/mitv/index.m3u8';
+            
+            if (Hls.isSupported()) {
+                const hls = new Hls();
+                hls.loadSource(streamUrl);
+                hls.attachMedia(videoElement);
+                hls.on(Hls.Events.MANIFEST_PARSED, () => {
+                    videoElement.play().catch(e => console.log('Error playing:', e));
+                });
+                hls.on(Hls.Events.ERROR, (event, data) => {
+                    if (data.fatal) {
+                        switchToRadio();
+                    }
+                });
+                videoPlayer = hls;
+            } else if (videoElement.canPlayType('application/vnd.apple.mpegurl')) {
+                videoElement.src = streamUrl;
+                videoElement.addEventListener('loadedmetadata', () => {
+                    videoElement.play().catch(e => console.log('Error playing:', e));
+                });
+            }
+            
             videoContainer.style.display = 'block';
             radioContainer.style.display = 'none';
         }
 
         function stopLiveStream() {
-            if (flvPlayer) { flvPlayer.destroy(); flvPlayer = null; }
-            video.pause(); video.src = '';
+            if (videoPlayer) {
+                videoPlayer.destroy();
+                videoPlayer = null;
+            }
+            const videoElement = document.getElementById('my-video');
+            videoElement.pause();
+            videoElement.src = '';
         }
 
         function initAudioPlayer(songUrl, title, artist) {
