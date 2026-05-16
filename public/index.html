@@ -1,3 +1,4 @@
+cat > public/index.html << 'EOF'
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -6,7 +7,6 @@
     <title>NEXUS LIVE - Radio y TV Online</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    <link href="https://vjs.zencdn.net/8.10.0/video-js.css" rel="stylesheet" />
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Inter', sans-serif; background: #0a0a0a; color: #fff; min-height: 100vh; display: flex; flex-direction: column; }
@@ -22,7 +22,7 @@
         .nav-btn { background: rgba(255,255,255,0.05); color: white; border: 1px solid rgba(255,255,255,0.1); padding: 10px 20px; border-radius: 30px; cursor: pointer; transition: all 0.3s; font-weight: 500; text-decoration: none; display: inline-flex; align-items: center; gap: 8px; }
         .nav-btn:hover { background: #e50914; transform: translateY(-2px); border-color: #e50914; }
         
-        .main-container { max-width: 1400px; margin: 0 auto; padding: 20px; flex: 1; width: 100%; }
+        .main-container { max-width: 1400px; margin: 0 auto; padding: 20px; flex: 1; }
         .two-columns { display: grid; grid-template-columns: 1fr 320px; gap: 20px; }
         
         .player-section { 
@@ -30,35 +30,29 @@
             border-radius: 20px; 
             overflow: hidden; 
             border: 1px solid rgba(255,255,255,0.1);
-            width: 100%;
-            aspect-ratio: 16 / 9;
+            aspect-ratio: 16/9;
             position: relative;
         }
-        #videoContainer {
+        #videoContainer, #radioContainer {
             position: absolute;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
         }
-        #my-video {
-            width: 100%;
-            height: 100%;
-        }
-        #radioContainer {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
+        #video { width: 100%; height: 100%; object-fit: cover; background: #000; }
+        .radio-container {
             background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
-            display: flex;
+            display: none;
             align-items: center;
             justify-content: center;
             flex-direction: column;
+            position: relative;
+            width: 100%;
+            height: 100%;
             overflow: hidden;
         }
-        #radioContainer::before {
+        .radio-container::before {
             content: '';
             position: absolute;
             width: 150%;
@@ -68,14 +62,14 @@
         }
         @keyframes rotate { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         .radio-logo {
-            width: 150px;
-            height: 150px;
+            width: 120px;
+            height: 120px;
             background: linear-gradient(135deg, #e50914, #b81a1a);
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 65px;
+            font-size: 50px;
             box-shadow: 0 20px 40px rgba(0,0,0,0.4);
             margin-bottom: 20px;
             z-index: 1;
@@ -87,16 +81,16 @@
             background: linear-gradient(135deg, #e50914, #b81a1a);
         }
         @keyframes pulseRadio { 0%,100% { transform: scale(1); } 50% { transform: scale(1.02); } }
-        .radio-wave { display: flex; gap: 6px; align-items: center; justify-content: center; height: 50px; z-index: 1; }
-        .wave-bar { width: 5px; background: #e50914; border-radius: 3px; animation: wave 1s ease-in-out infinite; }
-        .wave-bar:nth-child(1) { animation-delay: 0s; height: 20px; }
-        .wave-bar:nth-child(2) { animation-delay: 0.1s; height: 35px; }
-        .wave-bar:nth-child(3) { animation-delay: 0.2s; height: 50px; }
-        .wave-bar:nth-child(4) { animation-delay: 0.3s; height: 35px; }
-        .wave-bar:nth-child(5) { animation-delay: 0.4s; height: 20px; }
+        .radio-wave { display: flex; gap: 6px; align-items: center; justify-content: center; height: 40px; z-index: 1; }
+        .wave-bar { width: 4px; height: 20px; background: #e50914; border-radius: 2px; animation: wave 1s ease-in-out infinite; }
+        .wave-bar:nth-child(1) { animation-delay: 0s; height: 15px; }
+        .wave-bar:nth-child(2) { animation-delay: 0.1s; height: 30px; }
+        .wave-bar:nth-child(3) { animation-delay: 0.2s; height: 40px; }
+        .wave-bar:nth-child(4) { animation-delay: 0.3s; height: 30px; }
+        .wave-bar:nth-child(5) { animation-delay: 0.4s; height: 15px; }
         @keyframes wave { 0%,100% { transform: scaleY(1); } 50% { transform: scaleY(0.5); } }
-        .radio-title { font-size: 24px; font-weight: 700; margin-top: 15px; z-index: 1; text-align: center; }
-        .radio-subtitle { font-size: 13px; color: #9ca3af; margin-top: 5px; z-index: 1; }
+        .radio-title { font-size: 20px; font-weight: 700; margin-top: 15px; z-index: 1; text-align: center; }
+        .radio-subtitle { font-size: 12px; color: #9ca3af; margin-top: 5px; z-index: 1; }
         
         .player-info { background: rgba(10,10,10,0.95); padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; border-top: 1px solid rgba(255,255,255,0.08); }
         .status-badge { display: flex; align-items: center; gap: 8px; padding: 5px 12px; border-radius: 100px; font-size: 11px; font-weight: 600; }
@@ -129,56 +123,41 @@
         .chat-input-area button:hover { background: #b81a1a; transform: scale(1.02); }
         
         .sidebar { display: flex; flex-direction: column; gap: 20px; }
-        .info-card { background: rgba(255,255,255,0.05); border-radius: 20px; padding: 20px; border: 1px solid rgba(255,255,255,0.08); text-align: center; }
-        .weather-temp { font-size: 42px; font-weight: 700; }
-        .weather-city { font-size: 16px; color: #9ca3af; margin-top: 5px; }
-        .weather-icon { font-size: 54px; margin-bottom: 10px; }
-        .weather-desc { font-size: 13px; color: #9ca3af; margin-top: 10px; text-transform: capitalize; }
+        .info-card { background: rgba(255,255,255,0.05); border-radius: 20px; padding: 20px; border: 1px solid rgba(255,255,255,0.08); }
+        .weather-temp { font-size: 36px; font-weight: 700; }
+        .weather-city { font-size: 14px; color: #9ca3af; margin-top: 5px; }
+        .weather-icon { font-size: 48px; }
+        .weather-desc { font-size: 12px; color: #9ca3af; margin-top: 10px; }
         .datetime { margin-top: 15px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.05); }
         .time { font-size: 28px; font-weight: 700; font-family: monospace; }
         .date { font-size: 11px; color: #9ca3af; margin-top: 5px; }
         
-        .ad-space { 
-            background: linear-gradient(135deg, rgba(229,9,20,0.1), rgba(0,0,0,0.5)); 
-            border-radius: 15px; 
-            padding: 20px; 
-            text-align: center; 
-            border: 1px dashed rgba(229,9,20,0.3); 
-            cursor: pointer; 
-            transition: transform 0.3s;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-        }
+        .ad-space { background: linear-gradient(135deg, rgba(229,9,20,0.1), rgba(0,0,0,0.5)); border-radius: 15px; padding: 15px; text-align: center; border: 1px dashed rgba(229,9,20,0.3); cursor: pointer; transition: transform 0.3s; }
         .ad-space:hover { transform: scale(1.02); }
         .ad-text { font-size: 11px; color: #6b7280; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; }
-        .ad-title { font-size: 18px; font-weight: 600; margin-bottom: 5px; }
-        .ad-image { max-width: 100%; border-radius: 10px; margin-bottom: 10px; max-height: 150px; object-fit: contain; }
+        .ad-title { font-size: 16px; font-weight: 600; margin-bottom: 5px; }
+        .ad-image { max-width: 100%; border-radius: 10px; margin-bottom: 10px; max-height: 150px; }
         
-        .schedule-list { list-style: none; text-align: left; }
+        .schedule-list { list-style: none; }
         .schedule-list li { padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.05); display: flex; gap: 10px; }
         .schedule-time { color: #e50914; font-weight: 600; min-width: 60px; }
         .schedule-program { flex: 1; }
         
-        .footer { margin-top: 60px; padding: 40px 20px 20px; border-top: 1px solid rgba(255,255,255,0.05); background: rgba(0,0,0,0.3); }
-        .footer-content { max-width: 1200px; margin: 0 auto; display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 40px; margin-bottom: 30px; }
-        .footer-section { text-align: center; }
+        .footer { margin-top: 60px; padding: 40px 0 20px; border-top: 1px solid rgba(255,255,255,0.05); background: rgba(0,0,0,0.3); }
+        .footer-content { max-width: 1400px; margin: 0 auto; display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 30px; margin-bottom: 30px; padding: 0 20px; }
         .footer-section h4 { color: #e50914; margin-bottom: 15px; font-size: 16px; }
         .footer-section p { font-size: 13px; color: #9ca3af; line-height: 1.6; }
-        .social-links { display: flex; gap: 15px; justify-content: center; margin-top: 10px; }
+        .social-links { display: flex; gap: 15px; margin-top: 10px; }
         .social-links a { color: #9ca3af; font-size: 20px; transition: 0.3s; }
         .social-links a:hover { color: #e50914; }
-        .footer-bottom { max-width: 1200px; margin: 0 auto; text-align: center; padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.05); font-size: 12px; color: #6b7280; }
+        .footer-bottom { max-width: 1400px; margin: 0 auto; text-align: center; padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.05); font-size: 12px; color: #6b7280; }
         
         .admin-link { position: fixed; bottom: 20px; right: 20px; width: 45px; height: 45px; background: rgba(0,0,0,0.8); border-radius: 50%; display: flex; align-items: center; justify-content: center; transition: 0.3s; z-index: 100; border: 1px solid rgba(229,9,20,0.3); }
         .admin-link:hover { background: #e50914; transform: scale(1.1); }
         .admin-link a { color: white; text-decoration: none; font-size: 18px; }
         
         @media (max-width: 1024px) { .two-columns { grid-template-columns: 1fr; } }
-        @media (max-width: 768px) { .nav-container { flex-direction: column; } .radio-logo { width: 100px; height: 100px; font-size: 40px; } .radio-title { font-size: 18px; } }
-        
-        .video-js .vjs-big-play-button { background-color: #e50914 !important; border-radius: 50% !important; }
+        @media (max-width: 768px) { .nav-container { flex-direction: column; } .radio-logo { width: 80px; height: 80px; font-size: 35px; } .radio-title { font-size: 16px; } }
     </style>
 </head>
 <body>
@@ -201,13 +180,10 @@
         <div class="two-columns">
             <div>
                 <div class="player-section" id="playerSection">
-                    <div id="videoContainer">
-                        <video id="my-video" class="video-js vjs-big-play-centered" controls preload="auto" autoplay>
-                            <source src="/live/mitv/index.m3u8" type="application/x-mpegURL">
-                            <p class="vjs-no-js">Tu navegador no soporta video</p>
-                        </video>
+                    <div id="videoContainer" style="position: absolute; width: 100%; height: 100%;">
+                        <video id="video" controls autoplay style="width: 100%; height: 100%; object-fit: cover;"></video>
                     </div>
-                    <div id="radioContainer" style="display: none;">
+                    <div id="radioContainer" class="radio-container">
                         <div class="radio-logo default" id="radioLogo">📻</div>
                         <div class="radio-wave">
                             <div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div>
@@ -240,14 +216,12 @@
 
             <div class="sidebar">
                 <div class="info-card">
-                    <div class="weather-icon" id="weatherIcon"><i class="fas fa-map-marker-alt" style="font-size: 48px;"></i></div>
-                    <div class="weather-temp" id="temp">--°C</div>
-                    <div class="weather-city" id="cityName">Detectando ubicación...</div>
-                    <div class="weather-desc" id="weatherDesc">Por favor, permite el acceso a tu ubicación</div>
-                    <div class="datetime">
-                        <div class="time" id="currentTime">--:--:--</div>
-                        <div class="date" id="currentDate">--/--/----</div>
+                    <div style="display: flex; align-items: center; justify-content: space-between;">
+                        <div><div class="weather-temp" id="temp">--°C</div><div class="weather-city" id="cityName">--</div></div>
+                        <div class="weather-icon" id="weatherIcon"><i class="fas fa-map-marker-alt"></i></div>
                     </div>
+                    <div class="weather-desc" id="weatherDesc">--</div>
+                    <div class="datetime"><div class="time" id="currentTime">--:--:--</div><div class="date" id="currentDate">--/--/----</div></div>
                 </div>
 
                 <div id="adContainer" class="ad-space" style="cursor: pointer;">
@@ -258,7 +232,7 @@
                 </div>
 
                 <div class="info-card" id="scheduleSection">
-                    <h3 style="margin-bottom: 15px; font-size: 18px; color: #e50914; text-align: center;"><i class="fas fa-calendar-week"></i> Próximos Programas</h3>
+                    <h3 style="margin-bottom: 15px; font-size: 18px; color: #e50914;"><i class="fas fa-calendar-week"></i> Próximos Programas</h3>
                     <ul class="schedule-list">
                         <li><span class="schedule-time">08:00</span><span class="schedule-program">El Despertador</span></li>
                         <li><span class="schedule-time">12:00</span><span class="schedule-program">Al Mediodía</span></li>
@@ -303,10 +277,10 @@
 
     <div class="admin-link"><a href="/admin"><i class="fas fa-cog"></i></a></div>
 
-    <script src="https://vjs.zencdn.net/8.10.0/video.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flv.js@1.6.2/dist/flv.min.js"></script>
     <script>
         // Elementos DOM
+        const video = document.getElementById('video');
         const videoContainer = document.getElementById('videoContainer');
         const radioContainer = document.getElementById('radioContainer');
         const radioLogo = document.getElementById('radioLogo');
@@ -316,11 +290,14 @@
         const radioTitleSpan = document.getElementById('radioTitle');
         const radioSubtitleSpan = document.getElementById('radioSubtitle');
 
+        // URL CORREGIDA para Render (usa ruta relativa)
+        const STREAM_URL = '/live/mitv.flv';
         let currentMode = 'offline';
         let audioPlayer = null;
         let currentSongIndex = 0;
         let playlist = [];
-        let videoPlayer = null;
+        let flvPlayer = null;
+        let isUserPlaying = false;
 
         function shuffleArray(array) {
             const shuffled = [...array];
@@ -379,9 +356,7 @@
                     adTitle.innerHTML = '¿Querés anunciarte aquí?';
                     adContainer.onclick = () => alert('Contacto: publicidad@nexuslive.com');
                 }
-            } catch(e) {
-                console.error('Error cargando ads:', e);
-            }
+            } catch(e) {}
         }
 
         function showAd(index) {
@@ -391,10 +366,8 @@
             const adTitle = document.getElementById('adTitle');
             const adContainer = document.getElementById('adContainer');
             
-            if (ad.image) {
-                adImage.src = ad.image;
-                adImage.style.display = 'block';
-            }
+            adImage.src = ad.image;
+            adImage.style.display = 'block';
             adTitle.innerHTML = ad.title || 'Publicidad';
             adContainer.onclick = () => {
                 if (ad.link && ad.link !== '#') {
@@ -409,10 +382,10 @@
             const descElem = document.getElementById('weatherDesc');
             const iconElem = document.getElementById('weatherIcon');
             
-            cityElem.innerHTML = '📍 Caleta Olivia, Santa Cruz';
+            cityElem.innerHTML = 'Caleta Olivia';
             tempElem.innerHTML = '22°C';
             descElem.innerHTML = 'Parcialmente nublado';
-            iconElem.innerHTML = '<i class="fas fa-cloud-sun" style="font-size: 48px;"></i>';
+            iconElem.innerHTML = '<i class="fas fa-cloud-sun"></i>';
         }
 
         function updateDateTime() {
@@ -482,45 +455,22 @@
         }
 
         function initLiveStream() {
-            if (videoPlayer) {
-                videoPlayer.dispose();
+            if (flvPlayer) { flvPlayer.destroy(); flvPlayer = null; }
+            if (typeof flvjs !== 'undefined' && flvjs.isSupported()) {
+                flvPlayer = flvjs.createPlayer({ type: 'flv', url: STREAM_URL, isLive: true, cors: true });
+                flvPlayer.attachMediaElement(video);
+                flvPlayer.load();
+                flvPlayer.play().catch(e => console.log('Error playing:', e));
+                flvPlayer.on(flvjs.Events.ERROR, () => { if (currentMode === 'live') switchToRadio(); });
+            } else {
+                video.src = STREAM_URL;
+                video.play().catch(e => console.log('Error playing:', e));
             }
-            
-            const videoElement = document.getElementById('my-video');
-            const streamUrl = '/live/mitv/index.m3u8';
-            
-            if (Hls.isSupported()) {
-                const hls = new Hls();
-                hls.loadSource(streamUrl);
-                hls.attachMedia(videoElement);
-                hls.on(Hls.Events.MANIFEST_PARSED, () => {
-                    videoElement.play().catch(e => console.log('Error playing:', e));
-                });
-                hls.on(Hls.Events.ERROR, (event, data) => {
-                    if (data.fatal) {
-                        switchToRadio();
-                    }
-                });
-                videoPlayer = hls;
-            } else if (videoElement.canPlayType('application/vnd.apple.mpegurl')) {
-                videoElement.src = streamUrl;
-                videoElement.addEventListener('loadedmetadata', () => {
-                    videoElement.play().catch(e => console.log('Error playing:', e));
-                });
-            }
-            
-            videoContainer.style.display = 'block';
-            radioContainer.style.display = 'none';
         }
 
         function stopLiveStream() {
-            if (videoPlayer) {
-                videoPlayer.destroy();
-                videoPlayer = null;
-            }
-            const videoElement = document.getElementById('my-video');
-            videoElement.pause();
-            videoElement.src = '';
+            if (flvPlayer) { flvPlayer.destroy(); flvPlayer = null; }
+            video.pause(); video.src = '';
         }
 
         function initAudioPlayer(songUrl, title, artist) {
@@ -545,8 +495,6 @@
 
         function switchToRadio() {
             if (currentMode === 'live') stopLiveStream();
-            videoContainer.style.display = 'none';
-            radioContainer.style.display = 'flex';
             if (playlist.length > 0 && (!audioPlayer || audioPlayer.paused)) {
                 currentSongIndex = 0;
                 const song = playlist[currentSongIndex];
@@ -623,3 +571,4 @@
     </script>
 </body>
 </html>
+EOF
