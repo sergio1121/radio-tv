@@ -24,7 +24,6 @@
         .main-container { max-width: 1400px; margin: 0 auto; padding: 20px; flex: 1; width: 100%; }
         .two-columns { display: grid; grid-template-columns: 1fr 320px; gap: 20px; }
         
-        /* Reproductor - TAMAÑO FIJO siempre */
         .player-section { 
             background: #000; 
             border-radius: 20px; 
@@ -164,7 +163,6 @@
         .schedule-time { color: #e50914; font-weight: 600; min-width: 60px; }
         .schedule-program { flex: 1; }
         
-        /* Footer centrado */
         .footer { margin-top: 60px; padding: 40px 20px 20px; border-top: 1px solid rgba(255,255,255,0.05); background: rgba(0,0,0,0.3); }
         .footer-content { max-width: 1200px; margin: 0 auto; display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 40px; margin-bottom: 30px; }
         .footer-section { text-align: center; }
@@ -315,14 +313,14 @@
         const radioTitleSpan = document.getElementById('radioTitle');
         const radioSubtitleSpan = document.getElementById('radioSubtitle');
 
-        const STREAM_URL = 'http://localhost:8000/live/mitv.flv';
+        // URL del stream - CORREGIDA PARA RENDER
+        const STREAM_URL = '/live/mitv.flv';
         let currentMode = 'offline';
         let audioPlayer = null;
         let currentSongIndex = 0;
         let playlist = [];
         let flvPlayer = null;
 
-        // Mezclar array aleatoriamente
         function shuffleArray(array) {
             const shuffled = [...array];
             for (let i = shuffled.length - 1; i > 0; i--) {
@@ -339,7 +337,6 @@
         window.scrollToSchedule = scrollToSchedule;
         window.scrollToChat = scrollToChat;
 
-        // Cargar logo
         async function loadSettings() {
             try {
                 const res = await fetch('/api/settings');
@@ -357,7 +354,6 @@
             } catch(e) {}
         }
 
-        // Publicidad rotativa
         let ads = [];
         let currentAdIndex = 0;
         let adInterval = null;
@@ -402,116 +398,90 @@
             };
         }
 
-       // Clima con geolocalización REAL - Versión corregida
-async function getWeather() {
-    const cityElem = document.getElementById('cityName');
-    const tempElem = document.getElementById('temp');
-    const descElem = document.getElementById('weatherDesc');
-    const iconElem = document.getElementById('weatherIcon');
-    
-    cityElem.innerHTML = '📍 Solicitando ubicación GPS...';
-    tempElem.innerHTML = '--°C';
-    descElem.innerHTML = 'Permite la ubicación para ver el clima de tu ciudad';
-    iconElem.innerHTML = '<i class="fas fa-map-marker-alt" style="font-size: 48px;"></i>';
-    
-    if (!navigator.geolocation) {
-        cityElem.innerHTML = '❌ GPS no soportado';
-        descElem.innerHTML = 'Tu navegador no soporta geolocalización';
-        return;
-    }
-    
-    navigator.geolocation.getCurrentPosition(
-        async (position) => {
-            const lat = position.coords.latitude;
-            const lon = position.coords.longitude;
+        async function getWeather() {
+            const cityElem = document.getElementById('cityName');
+            const tempElem = document.getElementById('temp');
+            const descElem = document.getElementById('weatherDesc');
+            const iconElem = document.getElementById('weatherIcon');
             
-            try {
-                // Usar API de BigDataCloud (más precisa para ciudades argentinas)
-                const cityRes = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=es`);
-                const cityData = await cityRes.json();
-                
-                // Extraer ciudad correctamente
-                let city = cityData.city || cityData.locality || cityData.principalSubdivision;
-                let state = cityData.principalSubdivision;
-                let country = cityData.countryCode;
-                
-                // Si no se obtiene ciudad, intentar con Nominatim como fallback
-                if (!city || city === 'Mercado de la Ciudad' || city.includes('Mercado')) {
-                    const reverseRes = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&addressdetails=1`);
-                    const reverseData = await reverseRes.json();
-                    
-                    // Filtrar nombres no deseados
-                    city = reverseData.address?.city || 
-                           reverseData.address?.town || 
-                           reverseData.address?.village || 
-                           reverseData.address?.municipality ||
-                           reverseData.address?.county;
-                    
-                    // Si sigue siendo "Mercado de la Ciudad", usar provincia
-                    if (!city || city === 'Mercado de la Ciudad' || city.includes('Mercado')) {
-                        city = reverseData.address?.state || reverseData.address?.region || 'Tu ubicación';
-                    }
-                    
-                    state = reverseData.address?.state || state;
-                }
-                
-                // Limpiar nombre de ciudad (eliminar "Mercado de la Ciudad" si aparece)
-                if (city && (city.includes('Mercado') || city.includes('mercado'))) {
-                    city = state || 'Santa Cruz';
-                }
-                
-                // Mostrar ciudad y provincia
-                if (state && state !== city) {
-                    cityElem.innerHTML = `📍 ${city}, ${state}`;
-                } else {
-                    cityElem.innerHTML = `📍 ${city || 'Santa Cruz'}${country ? `, ${country}` : ''}`;
-                }
-                
-                // Obtener clima
-                const weatherRes = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true&timezone=auto`);
-                const weatherData = await weatherRes.json();
-                const temp = Math.round(weatherData.current_weather.temperature);
-                const weatherCode = weatherData.current_weather.weathercode;
-                
-                let weatherDesc = 'Despejado';
-                let weatherIcon = 'fa-sun';
-                
-                if (weatherCode >= 61 && weatherCode <= 67) { weatherDesc = 'Lluvia'; weatherIcon = 'fa-cloud-rain'; }
-                else if (weatherCode >= 71 && weatherCode <= 77) { weatherDesc = 'Nieve'; weatherIcon = 'fa-snowflake'; }
-                else if (weatherCode >= 95 && weatherCode <= 99) { weatherDesc = 'Tormenta'; weatherIcon = 'fa-bolt'; }
-                else if (weatherCode >= 51 && weatherCode <= 57) { weatherDesc = 'Llovizna'; weatherIcon = 'fa-cloud-rain'; }
-                else if (weatherCode >= 45 && weatherCode <= 48) { weatherDesc = 'Niebla'; weatherIcon = 'fa-smog'; }
-                else if (weatherCode >= 3) { weatherDesc = 'Nublado'; weatherIcon = 'fa-cloud'; }
-                else if (weatherCode === 2) { weatherDesc = 'Parcialmente nublado'; weatherIcon = 'fa-cloud-sun'; }
-                
-                tempElem.innerHTML = `${temp}°C`;
-                descElem.innerHTML = weatherDesc;
-                iconElem.innerHTML = `<i class="fas ${weatherIcon}" style="font-size: 48px;"></i>`;
-                
-            } catch(e) {
-                console.error('Error:', e);
-                // Fallback manual para Caleta Olivia
-                cityElem.innerHTML = '📍 Caleta Olivia, Santa Cruz';
-                tempElem.innerHTML = '--°C';
-                descElem.innerHTML = 'Actualizando clima...';
-                iconElem.innerHTML = '<i class="fas fa-cloud-sun" style="font-size: 48px;"></i>';
-            }
-        },
-        (error) => {
-            console.error('Error GPS:', error);
-            // Fallback manual
-            cityElem.innerHTML = '📍 Caleta Olivia, Santa Cruz';
-            descElem.innerHTML = 'Activa la ubicación para clima exacto';
-            iconElem.innerHTML = '<i class="fas fa-map-marker-alt" style="font-size: 48px;"></i>';
+            cityElem.innerHTML = '📍 Solicitando ubicación GPS...';
             tempElem.innerHTML = '--°C';
-        },
-        {
-            enableHighAccuracy: true,
-            timeout: 10000,
-            maximumAge: 0
+            descElem.innerHTML = 'Permite la ubicación para ver el clima de tu ciudad';
+            iconElem.innerHTML = '<i class="fas fa-map-marker-alt" style="font-size: 48px;"></i>';
+            
+            if (!navigator.geolocation) {
+                cityElem.innerHTML = '❌ GPS no soportado';
+                descElem.innerHTML = 'Tu navegador no soporta geolocalización';
+                return;
+            }
+            
+            navigator.geolocation.getCurrentPosition(
+                async (position) => {
+                    const lat = position.coords.latitude;
+                    const lon = position.coords.longitude;
+                    
+                    try {
+                        const cityRes = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=es`);
+                        const cityData = await cityRes.json();
+                        
+                        let city = cityData.city || cityData.locality || cityData.principalSubdivision;
+                        let state = cityData.principalSubdivision;
+                        let country = cityData.countryCode;
+                        
+                        if (!city || city === 'Mercado de la Ciudad' || city.includes('Mercado')) {
+                            const reverseRes = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&addressdetails=1`);
+                            const reverseData = await reverseRes.json();
+                            city = reverseData.address?.city || reverseData.address?.town || reverseData.address?.village || reverseData.address?.municipality || reverseData.address?.county;
+                            if (!city || city === 'Mercado de la Ciudad' || city.includes('Mercado')) {
+                                city = reverseData.address?.state || reverseData.address?.region || 'Tu ubicación';
+                            }
+                            state = reverseData.address?.state || state;
+                        }
+                        
+                        if (state && state !== city) {
+                            cityElem.innerHTML = `📍 ${city}, ${state}`;
+                        } else {
+                            cityElem.innerHTML = `📍 ${city || 'Santa Cruz'}${country ? `, ${country}` : ''}`;
+                        }
+                        
+                        const weatherRes = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true&timezone=auto`);
+                        const weatherData = await weatherRes.json();
+                        const temp = Math.round(weatherData.current_weather.temperature);
+                        const weatherCode = weatherData.current_weather.weathercode;
+                        
+                        let weatherDesc = 'Despejado';
+                        let weatherIcon = 'fa-sun';
+                        
+                        if (weatherCode >= 61 && weatherCode <= 67) { weatherDesc = 'Lluvia'; weatherIcon = 'fa-cloud-rain'; }
+                        else if (weatherCode >= 71 && weatherCode <= 77) { weatherDesc = 'Nieve'; weatherIcon = 'fa-snowflake'; }
+                        else if (weatherCode >= 95 && weatherCode <= 99) { weatherDesc = 'Tormenta'; weatherIcon = 'fa-bolt'; }
+                        else if (weatherCode >= 51 && weatherCode <= 57) { weatherDesc = 'Llovizna'; weatherIcon = 'fa-cloud-rain'; }
+                        else if (weatherCode >= 45 && weatherCode <= 48) { weatherDesc = 'Niebla'; weatherIcon = 'fa-smog'; }
+                        else if (weatherCode >= 3) { weatherDesc = 'Nublado'; weatherIcon = 'fa-cloud'; }
+                        else if (weatherCode === 2) { weatherDesc = 'Parcialmente nublado'; weatherIcon = 'fa-cloud-sun'; }
+                        
+                        tempElem.innerHTML = `${temp}°C`;
+                        descElem.innerHTML = weatherDesc;
+                        iconElem.innerHTML = `<i class="fas ${weatherIcon}" style="font-size: 48px;"></i>`;
+                        
+                    } catch(e) {
+                        console.error('Error:', e);
+                        cityElem.innerHTML = '📍 Caleta Olivia, Santa Cruz';
+                        tempElem.innerHTML = '--°C';
+                        descElem.innerHTML = 'Actualizando clima...';
+                        iconElem.innerHTML = '<i class="fas fa-cloud-sun" style="font-size: 48px;"></i>';
+                    }
+                },
+                (error) => {
+                    console.error('Error GPS:', error);
+                    cityElem.innerHTML = '📍 Caleta Olivia, Santa Cruz';
+                    descElem.innerHTML = 'Activa la ubicación para clima exacto';
+                    iconElem.innerHTML = '<i class="fas fa-map-marker-alt" style="font-size: 48px;"></i>';
+                    tempElem.innerHTML = '--°C';
+                },
+                { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+            );
         }
-    );
-}
 
         function updateDateTime() {
             const now = new Date();
@@ -519,7 +489,6 @@ async function getWeather() {
             document.getElementById('currentDate').innerHTML = now.toLocaleDateString('es-AR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
         }
 
-        // Chat
         let chatUsername = localStorage.getItem('chatUsername') || 'Oyente';
         document.getElementById('chatUsername').value = chatUsername;
         async function sendMessage() {
@@ -544,7 +513,6 @@ async function getWeather() {
         function escapeHtml(text) { const div = document.createElement('div'); div.textContent = text; return div.innerHTML; }
         window.sendMessage = sendMessage;
 
-        // Modos de reproducción
         function setMode(mode, message = '') {
             currentMode = mode;
             if (mode === 'live') {
@@ -584,10 +552,12 @@ async function getWeather() {
                 flvPlayer = flvjs.createPlayer({ type: 'flv', url: STREAM_URL, isLive: true, cors: true });
                 flvPlayer.attachMediaElement(video);
                 flvPlayer.load();
-                flvPlayer.play();
+                flvPlayer.play().catch(e => console.log('Error playing:', e));
                 flvPlayer.on(flvjs.Events.ERROR, () => { if (currentMode === 'live') switchToRadio(); });
-            } else { video.src = STREAM_URL; video.play(); }
-            // Asegurar que el contenedor se muestra correctamente
+            } else {
+                video.src = STREAM_URL;
+                video.play().catch(e => console.log('Error playing:', e));
+            }
             videoContainer.style.display = 'block';
             radioContainer.style.display = 'none';
         }
@@ -619,7 +589,6 @@ async function getWeather() {
 
         function switchToRadio() {
             if (currentMode === 'live') stopLiveStream();
-            // Asegurar que el contenedor de radio se muestra
             videoContainer.style.display = 'none';
             radioContainer.style.display = 'flex';
             if (playlist.length > 0 && (!audioPlayer || audioPlayer.paused)) {
@@ -660,7 +629,7 @@ async function getWeather() {
                 const res = await fetch('/api/songs');
                 const originalPlaylist = await res.json();
                 playlist = shuffleArray(originalPlaylist);
-                console.log(`Playlist cargada: ${playlist.length} canciones (orden aleatorio)`);
+                console.log(`Playlist cargada: ${playlist.length} canciones`);
                 
                 if (playlist.length > 0 && currentMode !== 'live') {
                     setTimeout(() => {
