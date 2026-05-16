@@ -5,6 +5,7 @@ const fs = require('fs');
 const multer = require('multer');
 const { spawn } = require('child_process');
 const session = require('express-session');
+const { Pool } = require('pg');
 
 // ============================================
 // CONFIGURACIÓN INICIAL
@@ -14,7 +15,13 @@ const WEB_PORT = process.env.PORT || 3000;
 const RTMP_PORT = 1935;
 const HTTP_PORT = 8000;
 
-// Session para autenticación
+// Conexión a PostgreSQL
+const pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: { rejectUnauthorized: false }
+});
+
+// Session
 app.use(session({
     secret: 'nexuslive_secret_2024',
     resave: false,
@@ -36,178 +43,68 @@ app.use('/ads', express.static('public/assets/ads'));
 app.use('/recordings', express.static(path.join(__dirname, 'recordings')));
 
 // ============================================
-// BASE DE DATOS (PostgreSQL en producción)
+// INICIALIZAR TABLAS
 // ============================================
-let db;
-
-if (process.env.NODE_ENV === 'production') {
-    // PostgreSQL para Render
-    const { Pool } = require('pg');
-    const pool = new Pool({
-        connectionString: process.env.DATABASE_URL,
-        ssl: { rejectUnauthorized: false }
-    });
-    
-    // Wrappers para compatibilidad con el código existente
-    db = {
-        get: (sql, params, callback) => {
-            // Convertir ? a $1, $2 para PostgreSQL
-            let pgSql = sql;
-            let counter = 1;
-            pgSql = pgSql.replace(/\?/g, () => `$${counter++}`);
-            pool.query(pgSql, params).then(res => {
-                callback(null, res.rows[0]);
-            }).catch(err => {
-                callback(err, null);
-            });
-        },
-        all: (sql, params, callback) => {
-            let pgSql = sql;
-            let counter = 1;
-            pgSql = pgSql.replace(/\?/g, () => `$${counter++}`);
-            pool.query(pgSql, params).then(res => {
-                callback(null, res.rows);
-            }).catch(err => {
-                callback(err, null);
-            });
-        },
-        run: (sql, params, callback) => {
-            let pgSql = sql;
-            let counter = 1;
-            pgSql = pgSql.replace(/\?/g, () => `$${counter++}`);
-            pool.query(pgSql, params).then(() => {
-                if (callback) callback(null);
-            }).catch(err => {
-                if (callback) callback(err);
-            });
-        },
-        serialize: (callback) => {
-            if (callback) callback();
+async function initTables() {
+    try {
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS songs (
+                id SERIAL PRIMARY KEY,
+                title TEXT,
+                artist TEXT,
+                filename TEXT,
+                added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            
+            CREATE TABLE IF NOT EXISTS recordings (
+                id SERIAL PRIMARY KEY,
+                filename TEXT,
+                title TEXT,
+                size INTEGER,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            
+            CREATE TABLE IF NOT EXISTS ads (
+                id SERIAL PRIMARY KEY,
+                image TEXT,
+                link TEXT,
+                title TEXT,
+                active INTEGER DEFAULT 1,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            
+            CREATE TABLE IF NOT EXISTS settings (
+                key TEXT PRIMARY KEY,
+                value TEXT
+            );
+            
+            CREATE TABLE IF NOT EXISTS users (
+                id SERIAL PRIMARY KEY,
+                username TEXT UNIQUE,
+                password TEXT
+            );
+        `);
+        
+        // Usuario admin
+        const userCheck = await pool.query("SELECT * FROM users WHERE username = 'admin'");
+        if (userCheck.rows.length === 0) {
+            await pool.query("INSERT INTO users (username, password) VALUES ($1, $2)", ['admin', 'Ser1979b@']);
+            console.log('✅ Usuario admin creado');
         }
-    };
-    
-    // Crear tablas en PostgreSQL
-    (async () => {
-        try {
-            await pool.query(`
-                CREATE TABLE IF NOT EXISTS songs (
-                    id SERIAL PRIMARY KEY,
-                    title TEXT,
-                    artist TEXT,
-                    filename TEXT,
-                    added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                );
-                
-                CREATE TABLE IF NOT EXISTS recordings (
-                    id SERIAL PRIMARY KEY,
-                    filename TEXT,
-                    title TEXT,
-                    size INTEGER,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                );
-                
-                CREATE TABLE IF NOT EXISTS ads (
-                    id SERIAL PRIMARY KEY,
-                    image TEXT,
-                    link TEXT,
-                    title TEXT,
-                    active INTEGER DEFAULT 1,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                );
-                
-                CREATE TABLE IF NOT EXISTS settings (
-                    key TEXT PRIMARY KEY,
-                    value TEXT
-                );
-                
-                CREATE TABLE IF NOT EXISTS users (
-                    id SERIAL PRIMARY KEY,
-                    username TEXT UNIQUE,
-                    password TEXT
-                );
-            `);
-            
-            // Usuario admin por defecto
-            const userCheck = await pool.query("SELECT * FROM users WHERE username = 'admin'");
-            if (userCheck.rows.length === 0) {
-                await pool.query("INSERT INTO users (username, password) VALUES ($1, $2)", ['admin', 'Ser1979b@']);
-                console.log('✅ Usuario admin creado: admin / Ser1979b@');
-            }
-            
-            // Logo por defecto
-            const logoCheck = await pool.query("SELECT * FROM settings WHERE key = 'logo'");
-            if (logoCheck.rows.length === 0) {
-                await pool.query("INSERT INTO settings (key, value) VALUES ($1, $2)", ['logo', '']);
-            }
-            
-            console.log('✅ Conectado a PostgreSQL en Render');
-        } catch (err) {
-            console.error('❌ Error en PostgreSQL:', err.message);
-        }
-    })();
-    
-    console.log('✅ Usando PostgreSQL en producción');
-    
-} else {
-    // SQLite para desarrollo local
-    const sqlite3 = require('sqlite3').verbose();
-    db = new sqlite3.Database('./database/radio.db');
-    
-    db.serialize(() => {
-        db.run(`CREATE TABLE IF NOT EXISTS songs (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            title TEXT NOT NULL,
-            artist TEXT,
-            filename TEXT NOT NULL,
-            added_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        )`);
-        
-        db.run(`CREATE TABLE IF NOT EXISTS recordings (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            filename TEXT NOT NULL,
-            title TEXT,
-            size INTEGER,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        )`);
-        
-        db.run(`CREATE TABLE IF NOT EXISTS ads (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            image TEXT NOT NULL,
-            link TEXT,
-            title TEXT,
-            active INTEGER DEFAULT 1,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        )`);
-        
-        db.run(`CREATE TABLE IF NOT EXISTS settings (
-            key TEXT PRIMARY KEY,
-            value TEXT
-        )`);
-        
-        db.run(`CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT UNIQUE NOT NULL,
-            password TEXT NOT NULL
-        )`);
-        
-        // Usuario admin por defecto
-        db.get("SELECT * FROM users WHERE username = 'admin'", (err, row) => {
-            if (!row) {
-                db.run("INSERT INTO users (username, password) VALUES (?, ?)", ['admin', 'Ser1979b@']);
-                console.log('✅ Usuario admin creado: admin / Ser1979b@');
-            }
-        });
         
         // Logo por defecto
-        db.get("SELECT * FROM settings WHERE key = 'logo'", (err, row) => {
-            if (!row) {
-                db.run("INSERT INTO settings (key, value) VALUES (?, ?)", ['logo', '']);
-            }
-        });
-    });
-    
-    console.log('✅ Usando SQLite local');
+        const logoCheck = await pool.query("SELECT * FROM settings WHERE key = 'logo'");
+        if (logoCheck.rows.length === 0) {
+            await pool.query("INSERT INTO settings (key, value) VALUES ($1, $2)", ['logo', '']);
+        }
+        
+        console.log('✅ Base de datos lista');
+    } catch (err) {
+        console.error('Error init DB:', err);
+    }
 }
+
+initTables();
 
 // ============================================
 // MIDDLEWARE DE AUTENTICACIÓN
@@ -226,25 +123,26 @@ app.get('/login', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'login.html'));
 });
 
-app.post('/api/login', (req, res) => {
+app.post('/api/login', async (req, res) => {
     const { username, password } = req.body;
-    console.log('🔐 Intento de login:', username);
+    console.log('Login intento:', username);
     
-    db.get("SELECT * FROM users WHERE username = ? AND password = ?", [username, password], (err, row) => {
-        if (err) {
-            console.error('Error en login:', err);
-            return res.status(500).json({ success: false, error: 'Error del servidor' });
-        }
-        if (row) {
+    try {
+        const result = await pool.query('SELECT * FROM users WHERE username = $1 AND password = $2', [username, password]);
+        
+        if (result.rows.length > 0) {
             req.session.isAdmin = true;
             req.session.username = username;
-            console.log('✅ Login exitoso:', username);
+            console.log('Login exitoso:', username);
             res.json({ success: true });
         } else {
-            console.log('❌ Login fallido:', username);
-            res.status(401).json({ success: false, error: 'Usuario o contraseña incorrectos' });
+            console.log('Login fallido:', username);
+            res.status(401).json({ success: false, error: 'Credenciales incorrectas' });
         }
-    });
+    } catch (err) {
+        console.error('Error login:', err);
+        res.status(500).json({ success: false, error: 'Error del servidor' });
+    }
 });
 
 app.get('/api/logout', (req, res) => {
@@ -253,7 +151,7 @@ app.get('/api/logout', (req, res) => {
 });
 
 // ============================================
-// CHAT EN VIVO
+// CHAT
 // ============================================
 let chatMessages = [];
 const MAX_CHAT = 100;
@@ -268,137 +166,139 @@ app.post('/api/chat/send', (req, res) => {
         return res.status(400).json({ error: 'Mensaje inválido' });
     }
     
-    const newMessage = {
+    chatMessages.push({
         id: Date.now(),
         username: username.substring(0, 20),
         message: message.substring(0, 200),
         timestamp: new Date().toISOString()
-    };
+    });
     
-    chatMessages.push(newMessage);
     if (chatMessages.length > MAX_CHAT) chatMessages.shift();
     res.json({ success: true });
 });
 
 // ============================================
-// SUBIDA MP3
+// SUBIDA DE ARCHIVOS
 // ============================================
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
-        if (file.fieldname === 'logo') {
-            cb(null, './public/assets/logos/');
-        } else if (file.fieldname === 'ad_image') {
-            cb(null, './public/assets/ads/');
-        } else {
-            cb(null, './public/assets/uploads/');
-        }
+        if (file.fieldname === 'logo') cb(null, './public/assets/logos/');
+        else if (file.fieldname === 'ad_image') cb(null, './public/assets/ads/');
+        else cb(null, './public/assets/uploads/');
     },
     filename: (req, file, cb) => {
-        const timestamp = Date.now();
-        const ext = path.extname(file.originalname);
-        cb(null, timestamp + ext);
+        cb(null, Date.now() + path.extname(file.originalname));
     }
 });
 
-const upload = multer({ 
-    storage: storage,
-    limits: { fileSize: 50 * 1024 * 1024, files: 100 }
-});
+const upload = multer({ storage, limits: { fileSize: 50 * 1024 * 1024, files: 100 } });
 
-app.post('/api/songs/multiple', upload.array('files', 100), (req, res) => {
+// ============================================
+// CANCIONES
+// ============================================
+app.post('/api/songs/multiple', upload.array('files', 100), async (req, res) => {
     const files = req.files;
     if (!files || files.length === 0) {
         return res.status(400).json({ error: 'No se subió ningún archivo' });
     }
     
-    files.forEach(file => {
-        let title = file.originalname.replace('.mp3', '').replace(/[_-]/g, ' ');
-        title = title.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(' ');
-        
-        db.run('INSERT INTO songs (title, artist, filename) VALUES (?, ?, ?)',
-            [title, 'NEXUS', file.filename]);
-    });
-    
-    res.json({ success: true, uploaded: files.length });
+    try {
+        for (const file of files) {
+            let title = file.originalname.replace('.mp3', '').replace(/[_-]/g, ' ');
+            title = title.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+            await pool.query('INSERT INTO songs (title, artist, filename) VALUES ($1, $2, $3)', [title, 'NEXUS', file.filename]);
+        }
+        res.json({ success: true, uploaded: files.length });
+    } catch (err) {
+        console.error('Error subiendo canciones:', err);
+        res.status(500).json({ error: 'Error al subir' });
+    }
 });
 
-app.get('/api/songs', (req, res) => {
-    db.all('SELECT * FROM songs ORDER BY added_at DESC', (err, rows) => {
-        if (err) return res.status(500).json({ error: err.message });
-        res.json(rows || []);
-    });
+app.get('/api/songs', async (req, res) => {
+    try {
+        const result = await pool.query('SELECT * FROM songs ORDER BY added_at DESC');
+        res.json(result.rows);
+    } catch (err) {
+        console.error('Error obteniendo canciones:', err);
+        res.status(500).json({ error: err.message });
+    }
 });
 
-app.delete('/api/songs/:id', (req, res) => {
+app.delete('/api/songs/:id', async (req, res) => {
     const { id } = req.params;
-    db.get('SELECT filename FROM songs WHERE id = ?', id, (err, row) => {
-        if (err || !row) return res.status(500).json({ error: err?.message });
-        const filePath = path.join(__dirname, 'public/assets/uploads', row.filename);
-        if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-        db.run('DELETE FROM songs WHERE id = ?', id, (err) => {
-            if (err) return res.status(500).json({ error: err.message });
-            res.json({ success: true });
-        });
-    });
+    try {
+        const song = await pool.query('SELECT filename FROM songs WHERE id = $1', [id]);
+        if (song.rows[0]) {
+            const filePath = path.join(__dirname, 'public/assets/uploads', song.rows[0].filename);
+            if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+        }
+        await pool.query('DELETE FROM songs WHERE id = $1', [id]);
+        res.json({ success: true });
+    } catch (err) {
+        console.error('Error eliminando canción:', err);
+        res.status(500).json({ error: err.message });
+    }
 });
 
 // ============================================
 // LOGO
 // ============================================
-app.post('/api/upload-logo', upload.single('logo'), (req, res) => {
+app.post('/api/upload-logo', upload.single('logo'), async (req, res) => {
     if (!req.file) {
         return res.status(400).json({ error: 'No se subió ningún archivo' });
     }
-    
     const logoPath = `/logos/${req.file.filename}`;
-    db.run("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", ['logo', logoPath]);
-    
+    await pool.query('INSERT INTO settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = $2', ['logo', logoPath]);
     res.json({ success: true, logo: logoPath });
 });
 
-app.get('/api/settings', (req, res) => {
-    db.all("SELECT key, value FROM settings", (err, rows) => {
-        if (err) return res.json({});
+app.get('/api/settings', async (req, res) => {
+    try {
+        const result = await pool.query('SELECT key, value FROM settings');
         const settings = {};
-        rows.forEach(row => settings[row.key] = row.value);
+        result.rows.forEach(row => settings[row.key] = row.value);
         res.json(settings);
-    });
+    } catch (err) {
+        res.json({});
+    }
 });
 
 // ============================================
 // PUBLICIDAD
 // ============================================
-app.post('/api/ads/upload', upload.single('ad_image'), (req, res) => {
+app.post('/api/ads/upload', upload.single('ad_image'), async (req, res) => {
     if (!req.file) {
         return res.status(400).json({ error: 'No se subió ningún archivo' });
     }
-    
     const { link, title } = req.body;
     const imagePath = `/ads/${req.file.filename}`;
-    
-    db.run("INSERT INTO ads (image, link, title) VALUES (?, ?, ?)", 
-        [imagePath, link || '#', title || 'Publicidad']);
-    
+    await pool.query('INSERT INTO ads (image, link, title) VALUES ($1, $2, $3)', [imagePath, link || '#', title || 'Publicidad']);
     res.json({ success: true });
 });
 
-app.get('/api/ads', (req, res) => {
-    db.all("SELECT * FROM ads WHERE active = 1 ORDER BY created_at DESC", (err, rows) => {
-        if (err) return res.json([]);
-        res.json(rows);
-    });
+app.get('/api/ads', async (req, res) => {
+    try {
+        const result = await pool.query('SELECT * FROM ads WHERE active = 1 ORDER BY created_at DESC');
+        res.json(result.rows);
+    } catch (err) {
+        res.json([]);
+    }
 });
 
-app.delete('/api/ads/:id', (req, res) => {
+app.delete('/api/ads/:id', async (req, res) => {
     const { id } = req.params;
-    db.get("SELECT image FROM ads WHERE id = ?", id, (err, row) => {
-        if (row && row.image) {
-            const filePath = path.join(__dirname, 'public', row.image);
+    try {
+        const ad = await pool.query('SELECT image FROM ads WHERE id = $1', [id]);
+        if (ad.rows[0] && ad.rows[0].image) {
+            const filePath = path.join(__dirname, 'public', ad.rows[0].image);
             if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
         }
-        db.run("DELETE FROM ads WHERE id = ?", id);
+        await pool.query('DELETE FROM ads WHERE id = $1', [id]);
         res.json({ success: true });
-    });
+    } catch (err) {
+        res.json({ success: true });
+    }
 });
 
 // ============================================
@@ -410,42 +310,22 @@ let currentRecordingFilename = null;
 let isStreaming = false;
 
 app.post('/api/recordings/start', (req, res) => {
-    if (isRecording) {
-        return res.json({ success: false, message: 'Ya hay una grabación en curso' });
-    }
-    if (!isStreaming) {
-        return res.json({ success: false, message: 'No hay transmisión activa' });
-    }
+    if (isRecording) return res.json({ success: false, message: 'Ya hay una grabación en curso' });
+    if (!isStreaming) return res.json({ success: false, message: 'No hay transmisión activa' });
     
     const timestamp = Date.now();
     currentRecordingFilename = `recording_${timestamp}.mp4`;
     const outputPath = path.join(__dirname, 'recordings', currentRecordingFilename);
-    
-    console.log('🎬 Iniciando grabación:', currentRecordingFilename);
-    
     const rtmpUrl = `rtmp://localhost:${RTMP_PORT}/live/mitv`;
-    const ffmpegArgs = ['-i', rtmpUrl, '-c', 'copy', '-y', outputPath];
-    currentRecordingProcess = spawn('ffmpeg', ffmpegArgs);
-    
-    currentRecordingProcess.on('error', (err) => {
-        console.error('Error en FFmpeg:', err);
-        isRecording = false;
-    });
-    
-    currentRecordingProcess.on('close', (code) => {
-        console.log(`Grabación finalizada con código: ${code}`);
-        isRecording = false;
-        currentRecordingProcess = null;
-    });
-    
+    currentRecordingProcess = spawn('ffmpeg', ['-i', rtmpUrl, '-c', 'copy', '-y', outputPath]);
+    currentRecordingProcess.on('error', () => { isRecording = false; });
+    currentRecordingProcess.on('close', () => { isRecording = false; currentRecordingProcess = null; });
     isRecording = true;
     res.json({ success: true, message: 'Grabación iniciada' });
 });
 
 app.post('/api/recordings/stop', (req, res) => {
-    if (!isRecording || !currentRecordingProcess) {
-        return res.json({ success: false, message: 'No hay grabación en curso' });
-    }
+    if (!isRecording || !currentRecordingProcess) return res.json({ success: false, message: 'No hay grabación en curso' });
     currentRecordingProcess.kill('SIGINT');
     res.json({ success: true, message: 'Grabación detenida' });
 });
@@ -454,34 +334,28 @@ app.get('/api/recordings/status', (req, res) => {
     res.json({ isRecording, filename: currentRecordingFilename });
 });
 
-app.get('/api/recordings', (req, res) => {
-    db.all('SELECT * FROM recordings ORDER BY created_at DESC', (err, rows) => {
-        if (err || !rows || rows.length === 0) {
-            const recordingsDir = path.join(__dirname, 'recordings');
-            if (!fs.existsSync(recordingsDir)) return res.json([]);
-            
-            fs.readdir(recordingsDir, (err, files) => {
-                if (err) return res.json([]);
-                const mp4Files = files.filter(f => f.endsWith('.mp4'));
-                const recordings = mp4Files.map(filename => {
-                    const filePath = path.join(recordingsDir, filename);
-                    try {
-                        const stats = fs.statSync(filePath);
-                        return {
-                            id: filename,
-                            filename: filename,
-                            title: filename.replace('.mp4', ''),
-                            size: stats.size,
-                            created_at: stats.birthtime || stats.ctime
-                        };
-                    } catch(e) { return null; }
-                }).filter(r => r !== null);
-                recordings.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-                res.json(recordings);
-            });
-        } else {
-            res.json(rows);
+app.get('/api/recordings', async (req, res) => {
+    try {
+        const result = await pool.query('SELECT * FROM recordings ORDER BY created_at DESC');
+        if (result.rows.length > 0) {
+            res.json(result.rows);
+            return;
         }
+    } catch (err) {}
+    
+    const recordingsDir = path.join(__dirname, 'recordings');
+    if (!fs.existsSync(recordingsDir)) return res.json([]);
+    
+    fs.readdir(recordingsDir, (err, files) => {
+        if (err) return res.json([]);
+        const recordings = files.filter(f => f.endsWith('.mp4')).map(filename => {
+            const filePath = path.join(recordingsDir, filename);
+            try {
+                const stats = fs.statSync(filePath);
+                return { id: filename, filename, title: filename.replace('.mp4', ''), size: stats.size, created_at: stats.birthtime || stats.ctime };
+            } catch(e) { return null; }
+        }).filter(r => r).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+        res.json(recordings);
     });
 });
 
@@ -489,18 +363,14 @@ app.delete('/api/recordings/:filename', (req, res) => {
     const filePath = path.join(__dirname, 'recordings', req.params.filename);
     if (fs.existsSync(filePath)) {
         fs.unlinkSync(filePath);
-        db.run('DELETE FROM recordings WHERE filename = ?', [req.params.filename]);
-        res.json({ success: true });
-    } else {
-        res.status(404).json({ error: 'Archivo no encontrado' });
+        pool.query('DELETE FROM recordings WHERE filename = $1', [req.params.filename]).catch(() => {});
     }
+    res.json({ success: true });
 });
 
 app.get('/recordings/download/:filename', (req, res) => {
     const filePath = path.join(__dirname, 'recordings', req.params.filename);
-    if (!fs.existsSync(filePath)) {
-        return res.status(404).send('Archivo no encontrado');
-    }
+    if (!fs.existsSync(filePath)) return res.status(404).send('Archivo no encontrado');
     res.download(filePath, req.params.filename);
 });
 
@@ -512,32 +382,18 @@ app.get('/api/stream/status', (req, res) => {
 });
 
 // ============================================
-// SERVIDOR RTMP/FLV
+// SERVIDOR RTMP
 // ============================================
-const configRtmp = {
+const nms = new NodeMediaServer({
     rtmp: { port: RTMP_PORT, chunk_size: 60000, gop_cache: true, ping: 60, ping_timeout: 30 },
     http: { port: HTTP_PORT, allow_origin: '*' }
-};
-
-const nms = new NodeMediaServer(configRtmp);
+});
 nms.run();
-
-nms.on('prePublish', () => {
-    console.log('🔴 Stream EN VIVO detectado');
-    isStreaming = true;
-});
-
-nms.on('donePublish', () => {
-    console.log('⚫ Stream detenido');
-    isStreaming = false;
-    if (isRecording && currentRecordingProcess) {
-        currentRecordingProcess.kill('SIGINT');
-        isRecording = false;
-    }
-});
+nms.on('prePublish', () => { console.log('🔴 Stream EN VIVO'); isStreaming = true; });
+nms.on('donePublish', () => { console.log('⚫ Stream detenido'); isStreaming = false; if (isRecording && currentRecordingProcess) { currentRecordingProcess.kill('SIGINT'); isRecording = false; } });
 
 // ============================================
-// RUTAS WEB (CON AUTENTICACIÓN)
+// RUTAS WEB
 // ============================================
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
@@ -548,7 +404,7 @@ app.get('/admin', isAuthenticated, (req, res) => {
 });
 
 // ============================================
-// INICIO DEL SERVIDOR
+// INICIO
 // ============================================
 app.listen(WEB_PORT, () => {
     console.log(`
@@ -561,7 +417,7 @@ app.listen(WEB_PORT, () => {
 📡 OBS:      rtmp://localhost:${RTMP_PORT}/live
 🔑 Stream key: mitv
 👤 Usuario: admin | Contraseña: Ser1979b@
-📦 Base de datos: ${process.env.NODE_ENV === 'production' ? 'PostgreSQL' : 'SQLite'}
+📦 Base de datos: PostgreSQL
 ═══════════════════════════════════════════════════
     `);
 });
