@@ -1,4 +1,4 @@
-
+cat > public/index.html << 'EOF'
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -22,7 +22,7 @@
         .nav-btn { background: rgba(255,255,255,0.05); color: white; border: 1px solid rgba(255,255,255,0.1); padding: 10px 20px; border-radius: 30px; cursor: pointer; transition: all 0.3s; font-weight: 500; text-decoration: none; display: inline-flex; align-items: center; gap: 8px; }
         .nav-btn:hover { background: #e50914; transform: translateY(-2px); border-color: #e50914; }
         
-        .main-container { max-width: 1400px; margin: 0 auto; padding: 20px; flex: 1; }
+        .main-container { max-width: 1400px; margin: 0 auto; padding: 20px; flex: 1; width: 100%; }
         .two-columns { display: grid; grid-template-columns: 1fr 320px; gap: 20px; }
         
         .player-section { 
@@ -30,29 +30,38 @@
             border-radius: 20px; 
             overflow: hidden; 
             border: 1px solid rgba(255,255,255,0.1);
-            aspect-ratio: 16/9;
+            width: 100%;
+            aspect-ratio: 16 / 9;
             position: relative;
         }
-        #videoContainer, #radioContainer {
+        #videoContainer {
             position: absolute;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
+            display: block;
         }
-        #video { width: 100%; height: 100%; object-fit: cover; background: #000; }
-        .radio-container {
+        #video {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            background: #000;
+        }
+        #radioContainer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
             background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
-            display: none;
+            display: flex;
             align-items: center;
             justify-content: center;
             flex-direction: column;
-            position: relative;
-            width: 100%;
-            height: 100%;
             overflow: hidden;
         }
-        .radio-container::before {
+        #radioContainer::before {
             content: '';
             position: absolute;
             width: 150%;
@@ -62,14 +71,14 @@
         }
         @keyframes rotate { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         .radio-logo {
-            width: 120px;
-            height: 120px;
+            width: 150px;
+            height: 150px;
             background: linear-gradient(135deg, #e50914, #b81a1a);
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 50px;
+            font-size: 65px;
             box-shadow: 0 20px 40px rgba(0,0,0,0.4);
             margin-bottom: 20px;
             z-index: 1;
@@ -81,16 +90,16 @@
             background: linear-gradient(135deg, #e50914, #b81a1a);
         }
         @keyframes pulseRadio { 0%,100% { transform: scale(1); } 50% { transform: scale(1.02); } }
-        .radio-wave { display: flex; gap: 6px; align-items: center; justify-content: center; height: 40px; z-index: 1; }
-        .wave-bar { width: 4px; height: 20px; background: #e50914; border-radius: 2px; animation: wave 1s ease-in-out infinite; }
-        .wave-bar:nth-child(1) { animation-delay: 0s; height: 15px; }
-        .wave-bar:nth-child(2) { animation-delay: 0.1s; height: 30px; }
-        .wave-bar:nth-child(3) { animation-delay: 0.2s; height: 40px; }
-        .wave-bar:nth-child(4) { animation-delay: 0.3s; height: 30px; }
-        .wave-bar:nth-child(5) { animation-delay: 0.4s; height: 15px; }
+        .radio-wave { display: flex; gap: 6px; align-items: center; justify-content: center; height: 50px; z-index: 1; }
+        .wave-bar { width: 5px; background: #e50914; border-radius: 3px; animation: wave 1s ease-in-out infinite; }
+        .wave-bar:nth-child(1) { animation-delay: 0s; height: 20px; }
+        .wave-bar:nth-child(2) { animation-delay: 0.1s; height: 35px; }
+        .wave-bar:nth-child(3) { animation-delay: 0.2s; height: 50px; }
+        .wave-bar:nth-child(4) { animation-delay: 0.3s; height: 35px; }
+        .wave-bar:nth-child(5) { animation-delay: 0.4s; height: 20px; }
         @keyframes wave { 0%,100% { transform: scaleY(1); } 50% { transform: scaleY(0.5); } }
-        .radio-title { font-size: 20px; font-weight: 700; margin-top: 15px; z-index: 1; text-align: center; }
-        .radio-subtitle { font-size: 12px; color: #9ca3af; margin-top: 5px; z-index: 1; }
+        .radio-title { font-size: 24px; font-weight: 700; margin-top: 15px; z-index: 1; text-align: center; }
+        .radio-subtitle { font-size: 13px; color: #9ca3af; margin-top: 5px; z-index: 1; }
         
         .player-info { background: rgba(10,10,10,0.95); padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; border-top: 1px solid rgba(255,255,255,0.08); }
         .status-badge { display: flex; align-items: center; gap: 8px; padding: 5px 12px; border-radius: 100px; font-size: 11px; font-weight: 600; }
@@ -103,6 +112,11 @@
         .now-playing i { color: #e50914; }
         .control-btn { background: rgba(255,255,255,0.08); border: none; color: white; padding: 6px 14px; border-radius: 40px; cursor: pointer; font-size: 12px; display: flex; align-items: center; gap: 6px; transition: all 0.2s; }
         .control-btn:hover { background: #e50914; transform: translateY(-2px); }
+        
+        /* Nuevo control de volumen */
+        .volume-control { display: flex; align-items: center; gap: 8px; background: rgba(0,0,0,0.4); padding: 4px 12px; border-radius: 40px; }
+        .volume-control i { font-size: 14px; color: #d1d5db; cursor: pointer; }
+        .volume-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 12px; height: 12px; background: #e50914; border-radius: 50%; cursor: pointer; }
         
         .chat-container {
             background: rgba(0,0,0,0.5);
@@ -123,41 +137,51 @@
         .chat-input-area button:hover { background: #b81a1a; transform: scale(1.02); }
         
         .sidebar { display: flex; flex-direction: column; gap: 20px; }
-        .info-card { background: rgba(255,255,255,0.05); border-radius: 20px; padding: 20px; border: 1px solid rgba(255,255,255,0.08); }
-        .weather-temp { font-size: 36px; font-weight: 700; }
-        .weather-city { font-size: 14px; color: #9ca3af; margin-top: 5px; }
-        .weather-icon { font-size: 48px; }
-        .weather-desc { font-size: 12px; color: #9ca3af; margin-top: 10px; }
-        .datetime { margin-top: 15px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.05); }
-        .time { font-size: 28px; font-weight: 700; font-family: monospace; }
+        .info-card { background: rgba(255,255,255,0.05); border-radius: 20px; padding: 20px; border: 1px solid rgba(255,255,255,0.08); text-align: center; }
+        .weather-temp { font-size: 42px; font-weight: 700; }
+        .weather-city { font-size: 16px; color: #9ca3af; margin-top: 5px; }
+        .weather-icon { font-size: 54px; margin-bottom: 10px; }
         .date { font-size: 11px; color: #9ca3af; margin-top: 5px; }
         
-        .ad-space { background: linear-gradient(135deg, rgba(229,9,20,0.1), rgba(0,0,0,0.5)); border-radius: 15px; padding: 15px; text-align: center; border: 1px dashed rgba(229,9,20,0.3); cursor: pointer; transition: transform 0.3s; }
+        .ad-space { 
+            background: linear-gradient(135deg, rgba(229,9,20,0.1), rgba(0,0,0,0.5)); 
+            border-radius: 15px; 
+            padding: 20px; 
+            text-align: center; 
+            border: 1px dashed rgba(229,9,20,0.3); 
+            cursor: pointer; 
+            transition: transform 0.3s;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
         .ad-space:hover { transform: scale(1.02); }
         .ad-text { font-size: 11px; color: #6b7280; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; }
-        .ad-title { font-size: 16px; font-weight: 600; margin-bottom: 5px; }
-        .ad-image { max-width: 100%; border-radius: 10px; margin-bottom: 10px; max-height: 150px; }
+        .ad-title { font-size: 18px; font-weight: 600; margin-bottom: 5px; }
+        .ad-image { max-width: 100%; border-radius: 10px; margin-bottom: 10px; max-height: 150px; object-fit: contain; }
         
-        .schedule-list { list-style: none; }
+        .schedule-list { list-style: none; text-align: left; }
         .schedule-list li { padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.05); display: flex; gap: 10px; }
         .schedule-time { color: #e50914; font-weight: 600; min-width: 60px; }
         .schedule-program { flex: 1; }
         
-        .footer { margin-top: 60px; padding: 40px 0 20px; border-top: 1px solid rgba(255,255,255,0.05); background: rgba(0,0,0,0.3); }
-        .footer-content { max-width: 1400px; margin: 0 auto; display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 30px; margin-bottom: 30px; padding: 0 20px; }
+        .footer { margin-top: 60px; padding: 40px 20px 20px; border-top: 1px solid rgba(255,255,255,0.05); background: rgba(0,0,0,0.3); }
+        .footer-content { max-width: 1200px; margin: 0 auto; display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 40px; margin-bottom: 30px; }
+        .footer-section { text-align: center; }
         .footer-section h4 { color: #e50914; margin-bottom: 15px; font-size: 16px; }
         .footer-section p { font-size: 13px; color: #9ca3af; line-height: 1.6; }
-        .social-links { display: flex; gap: 15px; margin-top: 10px; }
+        .social-links { display: flex; gap: 15px; justify-content: center; margin-top: 10px; }
         .social-links a { color: #9ca3af; font-size: 20px; transition: 0.3s; }
         .social-links a:hover { color: #e50914; }
-        .footer-bottom { max-width: 1400px; margin: 0 auto; text-align: center; padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.05); font-size: 12px; color: #6b7280; }
+        .footer-bottom { max-width: 1200px; margin: 0 auto; text-align: center; padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.05); font-size: 12px; color: #6b7280; }
         
         .admin-link { position: fixed; bottom: 20px; right: 20px; width: 45px; height: 45px; background: rgba(0,0,0,0.8); border-radius: 50%; display: flex; align-items: center; justify-content: center; transition: 0.3s; z-index: 100; border: 1px solid rgba(229,9,20,0.3); }
         .admin-link:hover { background: #e50914; transform: scale(1.1); }
         .admin-link a { color: white; text-decoration: none; font-size: 18px; }
         
         @media (max-width: 1024px) { .two-columns { grid-template-columns: 1fr; } }
-        @media (max-width: 768px) { .nav-container { flex-direction: column; } .radio-logo { width: 80px; height: 80px; font-size: 35px; } .radio-title { font-size: 16px; } }
+        @media (max-width: 768px) { .nav-container { flex-direction: column; } .radio-logo { width: 100px; height: 100px; font-size: 40px; } .radio-title { font-size: 18px; } .volume-slider { width: 70px; } }
     </style>
 </head>
 <body>
@@ -180,10 +204,10 @@
         <div class="two-columns">
             <div>
                 <div class="player-section" id="playerSection">
-                    <div id="videoContainer" style="position: absolute; width: 100%; height: 100%;">
-                        <video id="video" controls autoplay style="width: 100%; height: 100%; object-fit: cover;"></video>
+                    <div id="videoContainer">
+                        <video id="video" controls autoplay></video>
                     </div>
-                    <div id="radioContainer" class="radio-container">
+                    <div id="radioContainer">
                         <div class="radio-logo default" id="radioLogo">📻</div>
                         <div class="radio-wave">
                             <div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div>
@@ -199,6 +223,11 @@
                     </div>
                     <div class="now-playing" id="nowPlaying">
                         <i class="fas fa-headphones"></i><span>Inicializando...</span>
+                    </div>
+                    <!-- Nuevo control de volumen -->
+                    <div class="volume-control">
+                        <i id="volumeIcon" class="fas fa-volume-up"></i>
+                        <input type="range" id="volumeSlider" class="volume-slider" min="0" max="100" step="1" value="70">
                     </div>
                     <button class="control-btn" id="reloadBtn"><i class="fas fa-sync-alt"></i> Recargar</button>
                 </div>
@@ -216,12 +245,14 @@
 
             <div class="sidebar">
                 <div class="info-card">
-                    <div style="display: flex; align-items: center; justify-content: space-between;">
-                        <div><div class="weather-temp" id="temp">--°C</div><div class="weather-city" id="cityName">--</div></div>
-                        <div class="weather-icon" id="weatherIcon"><i class="fas fa-map-marker-alt"></i></div>
+                    <div class="weather-icon" id="weatherIcon"><i class="fas fa-map-marker-alt" style="font-size: 48px;"></i></div>
+                    <div class="weather-temp" id="temp">--°C</div>
+                    <div class="weather-city" id="cityName">Detectando ubicación...</div>
+                    <div class="weather-desc" id="weatherDesc">Por favor, permite el acceso a tu ubicación</div>
+                    <div class="datetime">
+                        <div class="time" id="currentTime">--:--:--</div>
+                        <div class="date" id="currentDate">--/--/----</div>
                     </div>
-                    <div class="weather-desc" id="weatherDesc">--</div>
-                    <div class="datetime"><div class="time" id="currentTime">--:--:--</div><div class="date" id="currentDate">--/--/----</div></div>
                 </div>
 
                 <div id="adContainer" class="ad-space" style="cursor: pointer;">
@@ -232,7 +263,7 @@
                 </div>
 
                 <div class="info-card" id="scheduleSection">
-                    <h3 style="margin-bottom: 15px; font-size: 18px; color: #e50914;"><i class="fas fa-calendar-week"></i> Próximos Programas</h3>
+                    <h3 style="margin-bottom: 15px; font-size: 18px; color: #e50914; text-align: center;"><i class="fas fa-calendar-week"></i> Próximos Programas</h3>
                     <ul class="schedule-list">
                         <li><span class="schedule-time">08:00</span><span class="schedule-program">El Despertador</span></li>
                         <li><span class="schedule-time">12:00</span><span class="schedule-program">Al Mediodía</span></li>
@@ -274,7 +305,6 @@
             <p>© 2026 NEXUS LIVE - Todos los derechos reservados | Transmisión en vivo las 24 horas</p>
         </div>
     </footer>
-
     <div class="admin-link"><a href="/admin"><i class="fas fa-cog"></i></a></div>
 
     <script src="https://cdn.jsdelivr.net/npm/flv.js@1.6.2/dist/flv.min.js"></script>
@@ -289,16 +319,62 @@
         const nowPlayingSpan = document.getElementById('nowPlaying');
         const radioTitleSpan = document.getElementById('radioTitle');
         const radioSubtitleSpan = document.getElementById('radioSubtitle');
+        // Nuevos elementos de volumen
+        const volumeSlider = document.getElementById('volumeSlider');
+        const volumeIcon = document.getElementById('volumeIcon');
 
-        // URL CORREGIDA para Render (usa ruta relativa)
-        const STREAM_URL = '/live/mitv.flv';
+        const STREAM_URL = 'http://localhost:8000/live/mitv.flv';
         let currentMode = 'offline';
         let audioPlayer = null;
         let currentSongIndex = 0;
         let playlist = [];
         let flvPlayer = null;
-        let isUserPlaying = false;
 
+        // === VOLUMEN (persistente) ===
+        let currentVolume = 0.7; // 70% por defecto
+
+        function setVolume(value) {
+            // value de 0 a 1
+            currentVolume = Math.min(1, Math.max(0, value));
+            // Aplicar al video si existe
+            if (video) video.volume = currentVolume;
+            // Aplicar al audioPlayer si existe
+            if (audioPlayer) audioPlayer.volume = currentVolume;
+            // Actualizar slider e ícono
+            volumeSlider.value = currentVolume * 100;
+            updateVolumeIcon(currentVolume);
+            // Guardar en localStorage
+            localStorage.setItem('playerVolume', currentVolume);
+        }
+
+        function updateVolumeIcon(vol) {
+            if (vol == 0) volumeIcon.className = 'fas fa-volume-mute';
+            else if (vol < 0.5) volumeIcon.className = 'fas fa-volume-down';
+            else volumeIcon.className = 'fas fa-volume-up';
+        }
+
+        // Eventos del slider
+        volumeSlider.addEventListener('input', (e) => {
+            const val = parseInt(e.target.value, 10) / 100;
+            setVolume(val);
+        });
+        // Click en el ícono para mute/unmute
+        volumeIcon.addEventListener('click', () => {
+            if (currentVolume > 0) {
+                localStorage.setItem('prevVolume', currentVolume);
+                setVolume(0);
+            } else {
+                const prev = parseFloat(localStorage.getItem('prevVolume')) || 0.7;
+                setVolume(prev);
+            }
+        });
+
+        // Cargar volumen guardado
+        const savedVol = localStorage.getItem('playerVolume');
+        if (savedVol !== null) setVolume(parseFloat(savedVol));
+        else setVolume(0.7);
+
+        // Mezclar array
         function shuffleArray(array) {
             const shuffled = [...array];
             for (let i = shuffled.length - 1; i > 0; i--) {
@@ -365,7 +441,6 @@
             const adImage = document.getElementById('adImage');
             const adTitle = document.getElementById('adTitle');
             const adContainer = document.getElementById('adContainer');
-            
             adImage.src = ad.image;
             adImage.style.display = 'block';
             adTitle.innerHTML = ad.title || 'Publicidad';
@@ -382,10 +457,77 @@
             const descElem = document.getElementById('weatherDesc');
             const iconElem = document.getElementById('weatherIcon');
             
-            cityElem.innerHTML = 'Caleta Olivia';
-            tempElem.innerHTML = '22°C';
-            descElem.innerHTML = 'Parcialmente nublado';
-            iconElem.innerHTML = '<i class="fas fa-cloud-sun"></i>';
+            cityElem.innerHTML = '📍 Solicitando ubicación GPS...';
+            tempElem.innerHTML = '--°C';
+            descElem.innerHTML = 'Permite la ubicación para ver el clima de tu ciudad';
+            iconElem.innerHTML = '<i class="fas fa-map-marker-alt" style="font-size: 48px;"></i>';
+            
+            if (!navigator.geolocation) {
+                cityElem.innerHTML = '❌ GPS no soportado';
+                descElem.innerHTML = 'Tu navegador no soporta geolocalización';
+                return;
+            }
+            
+            navigator.geolocation.getCurrentPosition(
+                async (position) => {
+                    const lat = position.coords.latitude;
+                    const lon = position.coords.longitude;
+                    try {
+                        const cityRes = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=es`);
+                        const cityData = await cityRes.json();
+                        let city = cityData.city || cityData.locality || cityData.principalSubdivision;
+                        let state = cityData.principalSubdivision;
+                        let country = cityData.countryCode;
+                        if (!city || city === 'Mercado de la Ciudad' || city.includes('Mercado')) {
+                            const reverseRes = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&addressdetails=1`);
+                            const reverseData = await reverseRes.json();
+                            city = reverseData.address?.city || reverseData.address?.town || reverseData.address?.village || reverseData.address?.municipality || reverseData.address?.county;
+                            if (!city || city === 'Mercado de la Ciudad' || city.includes('Mercado')) {
+                                city = reverseData.address?.state || reverseData.address?.region || 'Tu ubicación';
+                            }
+                            state = reverseData.address?.state || state;
+                        }
+                        if (city && (city.includes('Mercado') || city.includes('mercado'))) {
+                            city = state || 'Santa Cruz';
+                        }
+                        if (state && state !== city) {
+                            cityElem.innerHTML = `📍 ${city}, ${state}`;
+                        } else {
+                            cityElem.innerHTML = `📍 ${city || 'Santa Cruz'}${country ? `, ${country}` : ''}`;
+                        }
+                        const weatherRes = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true&timezone=auto`);
+                        const weatherData = await weatherRes.json();
+                        const temp = Math.round(weatherData.current_weather.temperature);
+                        const weatherCode = weatherData.current_weather.weathercode;
+                        let weatherDesc = 'Despejado';
+                        let weatherIcon = 'fa-sun';
+                        if (weatherCode >= 61 && weatherCode <= 67) { weatherDesc = 'Lluvia'; weatherIcon = 'fa-cloud-rain'; }
+                        else if (weatherCode >= 71 && weatherCode <= 77) { weatherDesc = 'Nieve'; weatherIcon = 'fa-snowflake'; }
+                        else if (weatherCode >= 95 && weatherCode <= 99) { weatherDesc = 'Tormenta'; weatherIcon = 'fa-bolt'; }
+                        else if (weatherCode >= 51 && weatherCode <= 57) { weatherDesc = 'Llovizna'; weatherIcon = 'fa-cloud-rain'; }
+                        else if (weatherCode >= 45 && weatherCode <= 48) { weatherDesc = 'Niebla'; weatherIcon = 'fa-smog'; }
+                        else if (weatherCode >= 3) { weatherDesc = 'Nublado'; weatherIcon = 'fa-cloud'; }
+                        else if (weatherCode === 2) { weatherDesc = 'Parcialmente nublado'; weatherIcon = 'fa-cloud-sun'; }
+                        tempElem.innerHTML = `${temp}°C`;
+                        descElem.innerHTML = weatherDesc;
+                        iconElem.innerHTML = `<i class="fas ${weatherIcon}" style="font-size: 48px;"></i>`;
+                    } catch(e) {
+                        console.error('Error:', e);
+                        cityElem.innerHTML = '📍 Caleta Olivia, Santa Cruz';
+                        tempElem.innerHTML = '--°C';
+                        descElem.innerHTML = 'Actualizando clima...';
+                        iconElem.innerHTML = '<i class="fas fa-cloud-sun" style="font-size: 48px;"></i>';
+                    }
+                },
+                (error) => {
+                    console.error('Error GPS:', error);
+                    cityElem.innerHTML = '📍 Caleta Olivia, Santa Cruz';
+                    descElem.innerHTML = 'Activa la ubicación para clima exacto';
+                    iconElem.innerHTML = '<i class="fas fa-map-marker-alt" style="font-size: 48px;"></i>';
+                    tempElem.innerHTML = '--°C';
+                },
+                { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+            );
         }
 
         function updateDateTime() {
@@ -396,7 +538,6 @@
 
         let chatUsername = localStorage.getItem('chatUsername') || 'Oyente';
         document.getElementById('chatUsername').value = chatUsername;
-        
         async function sendMessage() {
             const username = document.getElementById('chatUsername').value.trim() || 'Oyente';
             const message = document.getElementById('chatMessage').value.trim();
@@ -406,7 +547,6 @@
             document.getElementById('chatMessage').value = '';
             loadMessages();
         }
-        
         async function loadMessages() {
             try {
                 const res = await fetch('/api/chat/messages');
@@ -417,7 +557,6 @@
                 container.scrollTop = container.scrollHeight;
             } catch(e) {}
         }
-        
         function escapeHtml(text) { const div = document.createElement('div'); div.textContent = text; return div.innerHTML; }
         window.sendMessage = sendMessage;
 
@@ -460,12 +599,13 @@
                 flvPlayer = flvjs.createPlayer({ type: 'flv', url: STREAM_URL, isLive: true, cors: true });
                 flvPlayer.attachMediaElement(video);
                 flvPlayer.load();
-                flvPlayer.play().catch(e => console.log('Error playing:', e));
+                flvPlayer.play();
                 flvPlayer.on(flvjs.Events.ERROR, () => { if (currentMode === 'live') switchToRadio(); });
-            } else {
-                video.src = STREAM_URL;
-                video.play().catch(e => console.log('Error playing:', e));
-            }
+            } else { video.src = STREAM_URL; video.play(); }
+            videoContainer.style.display = 'block';
+            radioContainer.style.display = 'none';
+            // restaurar volumen al video
+            if (video) video.volume = currentVolume;
         }
 
         function stopLiveStream() {
@@ -483,6 +623,8 @@
             audioPlayer.src = songUrl;
             audioPlayer.load();
             audioPlayer.play().catch(e => console.log('Error:', e));
+            // aplicar volumen actual al nuevo audio
+            audioPlayer.volume = currentVolume;
             setMode('radio', `${title} - ${artist}`);
         }
 
@@ -495,6 +637,8 @@
 
         function switchToRadio() {
             if (currentMode === 'live') stopLiveStream();
+            videoContainer.style.display = 'none';
+            radioContainer.style.display = 'flex';
             if (playlist.length > 0 && (!audioPlayer || audioPlayer.paused)) {
                 currentSongIndex = 0;
                 const song = playlist[currentSongIndex];
@@ -533,8 +677,7 @@
                 const res = await fetch('/api/songs');
                 const originalPlaylist = await res.json();
                 playlist = shuffleArray(originalPlaylist);
-                console.log(`Playlist cargada: ${playlist.length} canciones`);
-                
+                console.log(`Playlist cargada: ${playlist.length} canciones (orden aleatorio)`);
                 if (playlist.length > 0 && currentMode !== 'live') {
                     setTimeout(() => {
                         if (currentMode !== 'live' && (!audioPlayer || audioPlayer.paused)) {
@@ -572,3 +715,6 @@
 </body>
 </html>
 EOF
+        .weather-desc { font-size: 13px; color: #9ca3af; margin-top: 10px; text-transform: capitalize; }
+        .datetime { margin-top: 15px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.05); }
+        .time { font-size: 28px; font-weight: 700; font-family: monospace;
